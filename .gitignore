@@ -1,2 +1,24 @@
 # Local vault shadow log (may contain PHI — do not commit)
 vault_backup.csv
+
+# CFO / secrets — never commit keys
+.env
+.env.*
+!.env.example
+
+# Streamlit secrets (API keys, Supabase, etc.)
+.streamlit/secrets.toml
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Local / runtime state
+.senturion_payer_intel.json
+.senturion_intake_processed_hashes.json
+
+# Optional: bank statements & sensitive PDFs (uncomment if needed)
+# Capitec*.pdf
+# *_Statement*.pdf

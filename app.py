@@ -23,6 +23,7 @@ import json
 from pathlib import Path
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any, NamedTuple
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -79,9 +80,59 @@ FOUNDERS_COMMISSION_RATE = 0.15  # Senturion founders commission on vault recove
 DEFAULT_TREASURY_STRIPE_URL = "https://buy.stripe.com/test_senturion_15_percent"
 DEFAULT_TREASURY_SOL_WALLET = "Senturion_Treasury_Sol_Address"
 TREASURY_SETTLEMENT_OPTIONS = ("🔴 UNPAID", "🟡 PENDING", "🟢 COLLECTED")
-# Founder equity — split of the 15% Senturion pool (Admin settings; defaults 50 / 50)
-DEFAULT_MONRE_EQUITY_PCT = 50.0
-DEFAULT_EDDIE_EQUITY_PCT = 50.0
+# Founder equity — hard-coded 50/50: CEO (Eduard de Lange) / CFO (Monré Wessel Nagel) on every recovery allocation
+CEO_CFO_EQUITY_PCT_EACH = 50.0
+
+# Live Treasury — Capitec opening balance verification (place PDF next to app.py)
+CAPITEC_STATEMENT_FILENAME = "Capitec_Statement_20260323.pdf"
+CAPITEC_STATEMENT_DATE_LABEL = "23/03/2026"
+CAPITEC_OPENING_BALANCE_ZAR = 100.00
+
+# Paystack / auditor footer & compliance badge
+PAYSTACK_MERCHANT_ID = "1774856"
+PAYSTACK_MERCHANT_STATUS = "AWAITING REVIEW"
+# Official Merchant Service Agreement document ID (auditor / partner footer)
+MSA_MERCHANT_DOC_ID = "0f3a4987A1B2C3D4E5F6789012345678"
+# Registered business contact (non-clinic executive footer)
+OFFICIAL_BUSINESS_ADDRESS = "1171 Bergsig Street, Pretoria"
+OFFICIAL_CONTACT_EMAIL = "senturionaisolutions@gmail.com"
+# Mandatory KYC strip (Paystack compliance mode — all authenticated pages)
+KYC_FOOTER_LINE = "Senturion AI Solutions | 1171 Bergsig Street, Pretoria | Merchant ID: 1774856"
+
+
+def _kyc_footer_html_inner() -> str:
+    """Legal footer: bold Pretoria address and Merchant ID (used before full module tail loads)."""
+    _addr = html_std.escape(OFFICIAL_BUSINESS_ADDRESS)
+    _mid = html_std.escape(str(PAYSTACK_MERCHANT_ID))
+    return (
+        f"Senturion AI Solutions | <strong>{_addr}</strong> | Merchant ID: <strong>{_mid}</strong>"
+    )
+
+
+# Paystack merchant verification — dedicated demo login (clean UI, no engine errors)
+DEMO_PAYSTACK_EMAIL = "reviews@paystack.com"
+# Emergency local bypass for Paystack merchant review (no Supabase auth). Remove after verification.
+PAYSTACK_REVIEW_BYPASS_PASSWORD = "SenturionVerify2026!"
+PAYSTACK_REVIEWER_BYPASS_USER_ID = "paystack-reviewer-bypass-local"
+# Reviewer demo — injected mock audits (Miami cohort; per-audit recoverable USD)
+REVIEWER_MOCK_CLINIC = "Miami Medical Center"
+REVIEWER_MOCK_AUDIT_STATUS = "Neural Analysis Complete"
+REVIEWER_MOCK_RECOVERABLE_USD = 14250.0
+REVIEWER_MOCK_AUDIT_IDS = ("AUD-MIA-2026-001", "AUD-MIA-2026-002", "AUD-MIA-2026-003")
+# Paystack hosted checkout for “Pay Release Fee” (set real URL in .streamlit/secrets.toml)
+DEFAULT_PAYSTACK_RELEASE_CHECKOUT_URL = "https://paystack.com/pay/senturion-release-fee"
+# Standard per-claim audit fee — canonical 50/50 net split after Paystack (revenue engine)
+AUDIT_FEE_USD_STANDARD = 2625.0
+# CFO currency: US clinics pay in USD; Paystack intl. card fee deducted before 50/50 net split
+PAYSTACK_INTL_CARD_FEE_PCT = 0.039  # ~3.9% on international cards (configurable estimate)
+FX_FALLBACK_USD_ZAR = 18.50  # if live FX APIs fail
+FX_CACHE_TTL_SEC = 3600  # 1 hour cache for USD/ZAR
+
+# Main dashboard header line (War Room + Agent Console — compliance row uses this text)
+DASHBOARD_TITLE_LINE = "SENTURION AI SOLUTIONS | CEO: EDUARD DE LANGE | CFO: MONRÉ WESSEL NAGEL"
+DASHBOARD_HEADER_HTML = (
+    '<h1 class="hud-title hud-title-mirror">' + DASHBOARD_TITLE_LINE + "</h1>"
+)
 # Legal Templates — Master Service Agreement (fixed; do not edit for individual deals without counsel)
 MSA_SUCCESS_FEE_PERCENT = 15
 BRAND_NAME = "Senturion AI Solutions"
@@ -168,9 +219,16 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
-# Configure Gemini API from secure vault
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-2.5-pro")
+# Configure Gemini API when present (optional — demo / paystack review flows may not need AI)
+model = None
+try:
+    if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+        _gk = str(st.secrets["GEMINI_API_KEY"] or "").strip()
+        if _gk:
+            genai.configure(api_key=_gk)
+            model = genai.GenerativeModel("gemini-2.5-pro")
+except Exception:
+    model = None
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -187,21 +245,53 @@ def _fetch_lottie_json(url: str) -> dict | None:
 
 
 @st.cache_resource
-def get_supabase() -> Client:
-    """Initialize Supabase client from Streamlit secrets."""
+def init_connection() -> Client:
+    """
+    Senturion Vault — initialize the Supabase client from Streamlit secrets.
+
+    Requires ``st.secrets['SUPABASE_URL']`` and ``st.secrets['SUPABASE_KEY']``.
+    """
     return create_client(
-        st.secrets["SUPABASE_URL"],
-        st.secrets["SUPABASE_KEY"],
+        str(st.secrets["SUPABASE_URL"]),
+        str(st.secrets["SUPABASE_KEY"]),
     )
+
+
+def get_supabase() -> Client:
+    """Return the cached Supabase client (same instance as :func:`init_connection`)."""
+    return init_connection()
 
 
 @st.cache_resource
 def get_supabase_service_role() -> Client:
     """Service-role client for Admin Auth API and profiles upsert. Key must stay in server secrets only."""
     return create_client(
-        st.secrets["SUPABASE_URL"],
-        st.secrets["SUPABASE_SERVICE_ROLE_KEY"],
+        str(st.secrets["SUPABASE_URL"]),
+        str(st.secrets["SUPABASE_SERVICE_ROLE_KEY"]),
     )
+
+
+@st.cache_data(ttl=45, show_spinner=False)
+def _supabase_database_online() -> bool:
+    """
+    Lightweight reachability check for Supabase (Senturion Vault pipes).
+    True when the REST gateway responds without a server error (5xx).
+    """
+    try:
+        if "SUPABASE_URL" not in st.secrets or "SUPABASE_KEY" not in st.secrets:
+            return False
+        url = str(st.secrets["SUPABASE_URL"]).rstrip("/")
+        key = str(st.secrets["SUPABASE_KEY"])
+        if requests is None:
+            return True
+        r = requests.get(
+            f"{url}/rest/v1/",
+            headers={"apikey": key, "Authorization": f"Bearer {key}"},
+            timeout=8,
+        )
+        return r.status_code < 500
+    except Exception:
+        return False
 
 
 # Hard-coded one-time Founders bypass (login path). Requires SUPABASE_SERVICE_ROLE_KEY in secrets.
@@ -276,7 +366,7 @@ def _fetch_profile_row(supabase: Client, user_id: str) -> dict | None:
 
 
 def _normalize_profile_role(raw: str | None) -> str:
-    """Map DB string to admin | agent | client | pending_review | agent fallback.
+    """Map DB string to admin | agent | client | clinic | reviewer | pending_review.
 
     New signups should get `pending_review` in `profiles` (Supabase trigger) until an Admin promotes them.
     """
@@ -287,10 +377,14 @@ def _normalize_profile_role(raw: str | None) -> str:
         return "pending_review"
     if role in ("admin", "administrator", "superadmin", "owner"):
         return "admin"
-    if role in ("client", "customer", "clinic_portal"):
+    if role in ("clinic", "clinics", "clinic_user", "clinic_portal", "practice", "guest_clinic"):
+        return "clinic"
+    if role in ("client", "customer"):
         return "client"
     if role == "agent":
         return "agent"
+    if role in ("reviewer", "paystack_reviewer", "merchant_reviewer"):
+        return "reviewer"
     return "pending_review"
 
 
@@ -301,6 +395,8 @@ class AppPermissions(NamedTuple):
     is_admin: bool
     is_agent: bool
     is_client: bool
+    is_clinic: bool
+    is_reviewer: bool
     is_pending_access: bool
     can_admin_war_room: bool
     can_user_management: bool
@@ -308,6 +404,47 @@ class AppPermissions(NamedTuple):
     can_appeal_engine: bool
     can_verify_submit: bool
     can_client_vault: bool
+    can_clinic_portal: bool
+
+
+def _session_email_normalized() -> str:
+    em = (st.session_state.get("email") or "").strip().lower()
+    if em:
+        return em
+    u = st.session_state.get("user")
+    return (getattr(u, "email", None) or "").strip().lower()
+
+
+def _is_paystack_demo_session() -> bool:
+    """Merchant verification demo — `reviews@paystack.com` sees the clean Demo Audit surface only."""
+    return _session_email_normalized() == DEMO_PAYSTACK_EMAIL.strip().lower()
+
+
+def _establish_paystack_reviewer_bypass_session() -> None:
+    """Local-only session (no Supabase JWT) for Paystack merchant review — role Reviewer."""
+    uid = PAYSTACK_REVIEWER_BYPASS_USER_ID
+    mock_user = SimpleNamespace(
+        id=uid,
+        email=DEMO_PAYSTACK_EMAIL,
+    )
+    st.session_state.user = mock_user
+    st.session_state.user_id = uid
+    st.session_state.email = DEMO_PAYSTACK_EMAIL
+    st.session_state.role = "reviewer"
+    st.session_state._paystack_reviewer_bypass = True
+    # Explicit session keys requested for Paystack review / Reviewer mode
+    st.session_state["logged_in"] = True
+    st.session_state["user_role"] = "Reviewer"
+
+
+def _apply_paystack_demo_role_override() -> None:
+    """Ensure Paystack review login is never stuck in pending_review; role stays Reviewer."""
+    if not _is_paystack_demo_session():
+        return
+    st.session_state.role = "reviewer"
+    st.session_state.email = _session_email_normalized() or DEMO_PAYSTACK_EMAIL
+    st.session_state["logged_in"] = True
+    st.session_state["user_role"] = "Reviewer"
 
 
 def check_permissions() -> AppPermissions:
@@ -317,23 +454,32 @@ def check_permissions() -> AppPermissions:
     adm = r == "admin"
     agt = r == "agent"
     cli = r == "client"
+    cln = r == "clinic"
+    rev = r == "reviewer"
     return AppPermissions(
         role=r,
         is_admin=adm,
         is_agent=agt,
         is_client=cli,
+        is_clinic=cln,
+        is_reviewer=rev,
         is_pending_access=pend,
         can_admin_war_room=adm,
         can_user_management=adm,
-        can_financial_analytics=adm,
+        can_financial_analytics=adm or agt,
         can_appeal_engine=adm or agt,
         can_verify_submit=agt,
         can_client_vault=cli,
+        can_clinic_portal=cln,
     )
 
 
 def _sync_session_with_profiles_table() -> None:
     """Reconcile session role/email with `profiles` on every run (DB is source of truth)."""
+    if st.session_state.get("_paystack_reviewer_bypass") or str(
+        st.session_state.get("user_id") or ""
+    ) == PAYSTACK_REVIEWER_BYPASS_USER_ID:
+        return
     uid = st.session_state.get("user_id")
     if not uid or not st.session_state.user:
         return
@@ -425,7 +571,7 @@ def _show_access_granted_banner() -> None:
 
 def _admin_set_profile_role(supabase: Client, profile_id: str, new_role: str) -> tuple[bool, str]:
     nr = str(new_role).strip().lower()
-    if nr not in ("admin", "agent", "client", "pending_review"):
+    if nr not in ("admin", "agent", "client", "clinic", "pending_review"):
         return False, "Invalid role"
     try:
         supabase.table("profiles").update({"role": nr}).eq("id", str(profile_id)).execute()
@@ -495,6 +641,10 @@ if "audit_log_history" not in st.session_state:
     st.session_state.audit_log_history = []
 if "client_view_mode" not in st.session_state:
     st.session_state.client_view_mode = False
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user_role" not in st.session_state:
+    st.session_state.user_role = None
 if "debug_log" not in st.session_state:
     st.session_state.debug_log = []
 if "clinic_profiles" not in st.session_state:
@@ -700,12 +850,12 @@ def render_login_screen() -> None:
                 _brand_logo_html = ""
         st.markdown(
             f'<div class="vault-brand-wrap">{_brand_logo_html}'
-            '<p class="vault-senturion-title">SENTURION</p>'
-            '<p class="vault-portal-subtitle">REVENUE AUDIT PORTAL</p></div>',
+            '<p class="vault-senturion-title">SENTURION AI</p>'
+            '<p class="vault-portal-subtitle">Secure Medical Revenue Recovery Terminal</p></div>',
             unsafe_allow_html=True,
         )
 
-        tab_login, tab_register = st.tabs(["Login", "Create Account"])
+        tab_login, tab_register, tab_clinic_guest = st.tabs(["Login", "Create Account", "Clinic Portal"])
 
         with tab_login:
             with st.form("login_form", clear_on_submit=False):
@@ -746,8 +896,29 @@ def render_login_screen() -> None:
                 )
                 register_submitted = st.form_submit_button("Register", use_container_width=True)
 
+        with tab_clinic_guest:
+            st.markdown(
+                '<p style="font-family:\'JetBrains Mono\',monospace;font-size:0.72rem;color:#a8b0c4;text-align:center;'
+                'letter-spacing:0.12em;text-transform:uppercase;margin:0 0 0.5rem 0;">Clinic · guest access</p>',
+                unsafe_allow_html=True,
+            )
+            st.info(
+                "**Clinic accounts** sign in on the **Login** tab using the email and password issued by Senturion. "
+                "Your profile must have **`clinic`** role in Supabase (`profiles.role`)."
+            )
+            st.caption(
+                "Restricted portal: **Upload Claims** and **View Audit Reports** only — no treasury, Capitec, or founder equity."
+            )
+
         st.markdown(
             '<p class="vault-login-footer">Proprietary Neural Audit System v1.0</p>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f'<div style="margin-top:1rem;padding:0.65rem 0.5rem;border-top:1px solid rgba(212,175,55,0.25);'
+            f"border-bottom:1px solid rgba(212,175,55,0.15);background:#0f172a;font-family:'JetBrains Mono',monospace;"
+            f'font-size:0.58rem;letter-spacing:0.1em;color:#e8e8e8;text-align:center;">'
+            f"{_kyc_footer_html_inner()}</div>",
             unsafe_allow_html=True,
         )
 
@@ -755,76 +926,86 @@ def render_login_screen() -> None:
         if not email or not password:
             st.error("Please enter email and password.")
         else:
-            try:
-                supabase = get_supabase()
-                _em_login = (email or "").strip()
+            _em_login = (email or "").strip()
+            # Paystack merchant review — emergency bypass (no Supabase); role Reviewer.
+            if (
+                _em_login.lower() == DEMO_PAYSTACK_EMAIL.lower()
+                and password == PAYSTACK_REVIEW_BYPASS_PASSWORD
+            ):
+                _establish_paystack_reviewer_bypass_session()
+                st.success("Authenticated (Paystack review). Loading Neural Audit Demo…")
+                time.sleep(0.35)
+                st.rerun()
+            else:
+                try:
+                    supabase = get_supabase()
 
-                # Founders bypass: force-create auth user (confirmed) + admin profile before normal sign-in.
-                if (
-                    _em_login.lower() == _FOUNDERS_BYPASS_EMAIL.lower()
-                    and st.session_state.get("user") is None
-                ):
-                    if "SUPABASE_SERVICE_ROLE_KEY" not in st.secrets:
-                        st.error(
-                            "Founders bypass: add SUPABASE_SERVICE_ROLE_KEY to .streamlit/secrets.toml."
-                        )
-                    else:
-                        sb_svc = get_supabase_service_role()
-                        try:
-                            _cu = sb_svc.auth.admin.create_user(
-                                {
-                                    "email": _em_login,
-                                    "password": password,
-                                    "email_confirm": True,
-                                }
+                    # Founders bypass: force-create auth user (confirmed) + admin profile before normal sign-in.
+                    if (
+                        _em_login.lower() == _FOUNDERS_BYPASS_EMAIL.lower()
+                        and st.session_state.get("user") is None
+                    ):
+                        if "SUPABASE_SERVICE_ROLE_KEY" not in st.secrets:
+                            st.error(
+                                "Founders bypass: add SUPABASE_SERVICE_ROLE_KEY to .streamlit/secrets.toml."
                             )
-                            _nu = getattr(_cu, "user", None) if _cu else None
-                            _nid = (
-                                str(_nu.id)
-                                if _nu is not None and getattr(_nu, "id", None)
-                                else None
-                            )
-                            if _nid:
-                                sb_svc.table("profiles").upsert(
+                        else:
+                            sb_svc = get_supabase_service_role()
+                            try:
+                                _cu = sb_svc.auth.admin.create_user(
                                     {
-                                        "id": _nid,
                                         "email": _em_login,
-                                        "role": "admin",
+                                        "password": password,
+                                        "email_confirm": True,
                                     }
-                                ).execute()
+                                )
+                                _nu = getattr(_cu, "user", None) if _cu else None
+                                _nid = (
+                                    str(_nu.id)
+                                    if _nu is not None and getattr(_nu, "id", None)
+                                    else None
+                                )
+                                if _nid:
+                                    sb_svc.table("profiles").upsert(
+                                        {
+                                            "id": _nid,
+                                            "email": _em_login,
+                                            "role": "admin",
+                                        }
+                                    ).execute()
+                            except Exception:
+                                # User may already exist in auth.users — continue to sign_in_with_password.
+                                pass
+
+                    auth_response = supabase.auth.sign_in_with_password(
+                        {"email": _em_login, "password": password}
+                    )
+                    user = auth_response.user
+
+                    if (
+                        _em_login.lower() == _FOUNDERS_BYPASS_EMAIL.lower()
+                        and user is not None
+                        and getattr(user, "id", None)
+                        and "SUPABASE_SERVICE_ROLE_KEY" in st.secrets
+                    ):
+                        try:
+                            get_supabase_service_role().table("profiles").upsert(
+                                {
+                                    "id": str(user.id),
+                                    "email": _em_login,
+                                    "role": "admin",
+                                }
+                            ).execute()
                         except Exception:
-                            # User may already exist in auth.users — continue to sign_in_with_password.
                             pass
 
-                auth_response = supabase.auth.sign_in_with_password(
-                    {"email": _em_login, "password": password}
-                )
-                user = auth_response.user
-
-                if (
-                    _em_login.lower() == _FOUNDERS_BYPASS_EMAIL.lower()
-                    and user is not None
-                    and getattr(user, "id", None)
-                    and "SUPABASE_SERVICE_ROLE_KEY" in st.secrets
-                ):
-                    try:
-                        get_supabase_service_role().table("profiles").upsert(
-                            {
-                                "id": str(user.id),
-                                "email": _em_login,
-                                "role": "admin",
-                            }
-                        ).execute()
-                    except Exception:
-                        pass
-
-                # JWT stored by sign_in_with_password — RLS on `profiles` applies on fetch.
-                _sync_session_from_profiles_after_login(supabase, user)
-                st.success("Authenticated. Loading portal...")
-                time.sleep(0.5)
-                st.rerun()
-            except Exception as e:
-                st.error(f"Authentication failed: {e}")
+                    # JWT stored by sign_in_with_password — RLS on `profiles` applies on fetch.
+                    _sync_session_from_profiles_after_login(supabase, user)
+                    st.success("Authenticated. Loading portal...")
+                    time.sleep(0.5)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Authentication failed: {e}")
 
     if register_submitted:
         if not reg_email or not reg_password:
@@ -905,8 +1086,8 @@ def render_login_screen() -> None:
                     st.error(f"Registration failed: {e}")
 
 
-# Gatekeeper: block unauthenticated access
-if st.session_state.user is None:
+# Gatekeeper: block unauthenticated access (Supabase user or emergency Reviewer bypass)
+if st.session_state.user is None and not st.session_state.get("logged_in"):
     render_login_screen()
     st.stop()
 
@@ -920,31 +1101,31 @@ st.markdown("""
     .stApp::before { display: none !important; }
 
     .stApp {
-        background: #050505 !important;
+        background: #0f172a !important;
         background-image: none !important;
-        color: #E0E0E0 !important;
+        color: #e2e8f0 !important;
     }
 
-    /* Holographic chrome: subtle 1px border on primary canvas */
+    /* Slate Dark — professional canvas (no white bleed) */
     .main .block-container {
-        border: 1px solid #262626 !important;
-        border-radius: 2px !important;
+        border: 1px solid #334155 !important;
+        border-radius: 4px !important;
         padding: 1.25rem 1.5rem !important;
-        background: transparent !important;
+        background: #1e293b !important;
         transition: opacity 0.2s ease-in-out;
     }
 
     [data-testid="stHeader"] {
-        background: #050505 !important;
-        border-bottom: 1px solid #262626 !important;
+        background: #0f172a !important;
+        border-bottom: 1px solid #334155 !important;
     }
 
     .glass-panel {
-        background: #0D0D0D !important;
+        background: #1e293b !important;
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
-        border-radius: 2px !important;
-        border: 1px solid #262626 !important;
+        border-radius: 4px !important;
+        border: 1px solid #334155 !important;
         padding: 1rem 1.25rem;
         margin: 0.75rem 0;
         box-shadow: none !important;
@@ -954,16 +1135,35 @@ st.markdown("""
         font-family: 'JetBrains Mono', ui-monospace, monospace !important;
         background: transparent;
         max-width: 100%;
-        color: #E0E0E0 !important;
+        color: #e2e8f0 !important;
     }
 
     p, .main p, .main span, label, [data-testid="stWidgetLabel"] {
-        color: #E0E0E0 !important;
+        color: #e2e8f0 !important;
+    }
+
+    /* Metrics / data — contained slate (no bright white cards) */
+    [data-testid="stMetricContainer"] {
+        background: #0f172a !important;
+        border: 1px solid #334155 !important;
+        border-radius: 4px !important;
+        padding: 0.65rem 0.75rem !important;
+    }
+    [data-testid="stMetricContainer"] label {
+        color: #94a3b8 !important;
+    }
+    [data-testid="stMetricContainer"] [data-testid="stMetricValue"] {
+        color: #f1f5f9 !important;
+    }
+    div[data-testid="stDataFrame"] {
+        border: 1px solid #334155 !important;
+        border-radius: 4px !important;
+        overflow: hidden !important;
     }
 
     [data-testid="stSidebar"] {
-        background: #0D0D0D !important;
-        border-right: 1px solid #262626 !important;
+        background: #0f172a !important;
+        border-right: 1px solid #334155 !important;
         backdrop-filter: none !important;
         position: relative;
         overflow: auto;
@@ -972,11 +1172,11 @@ st.markdown("""
     [data-testid="stSidebar"]::before { display: none !important; }
 
     [data-testid="stSidebar"] .block-container {
-        border: 1px solid #262626 !important;
-        border-radius: 2px !important;
+        border: 1px solid #334155 !important;
+        border-radius: 4px !important;
         padding: 0.85rem !important;
         margin: 0.35rem 0.25rem !important;
-        background: #050505 !important;
+        background: #1e293b !important;
     }
 
     [data-testid="stSidebar"] .stMarkdown,
@@ -1046,30 +1246,53 @@ st.markdown("""
 
     .founding-partners {
         margin-top: 1rem;
-        padding-top: 1rem;
-        border-top: 1px solid #262626;
+        padding: 1rem 1rem 0.85rem;
+        border: 1px solid rgba(212, 175, 55, 0.35);
+        border-radius: 2px;
+        background: #0a0a0a;
         font-family: 'JetBrains Mono', ui-monospace, monospace !important;
         font-size: 0.82rem;
     }
 
+    .founding-partners strong {
+        color: #fafafa !important;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+    }
+
     .founding-partners .partner-name {
-        color: #E0E0E0 !important;
+        color: #fafafa !important;
         font-weight: 500;
         text-shadow: none !important;
     }
 
+    .founding-partners .partner-exec-line {
+        display: block;
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 0.72rem;
+        letter-spacing: 0.06em;
+        text-transform: none;
+    }
+    .founding-partners .partner-exec-line.ceo-line {
+        color: #fafafa !important;
+        font-weight: 500;
+    }
+    .founding-partners .partner-exec-line.cfo-line {
+        color: #d4af37 !important;
+        font-weight: 500;
+    }
     .founding-partners .partner-role {
         font-family: 'JetBrains Mono', ui-monospace, monospace !important;
         font-size: 0.65rem;
-        color: #6b7280 !important;
+        color: #d4af37 !important;
         text-transform: uppercase;
-        letter-spacing: 2px;
+        letter-spacing: 0.18em;
     }
 
     .founding-partners .partner-sep {
         display: block;
         height: 1px;
-        background: #262626;
+        background: rgba(212, 175, 55, 0.28);
         margin: 0.6rem 0;
         box-shadow: none !important;
     }
@@ -1086,6 +1309,52 @@ st.markdown("""
         margin-bottom: 1rem !important;
         border-bottom: 1px solid #262626;
         padding-bottom: 0.5rem;
+    }
+    .hud-title-mirror {
+        font-size: 0.92rem !important;
+        letter-spacing: 0.07em !important;
+        line-height: 1.4 !important;
+    }
+    .executive-header-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem 1rem;
+        margin-bottom: 1rem !important;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #262626;
+    }
+    .executive-header-h1 {
+        flex: 1 1 12rem;
+        min-width: 0;
+        margin-bottom: 0 !important;
+        border-bottom: none !important;
+        padding-bottom: 0 !important;
+    }
+    .compliance-badge {
+        flex: 0 0 auto;
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 0.58rem !important;
+        letter-spacing: 0.06em !important;
+        color: #a3e635 !important;
+        border: 1px solid #3f3f46;
+        background: #0a0a0a;
+        padding: 0.4rem 0.7rem;
+        border-radius: 2px;
+        line-height: 1.35;
+        text-align: right;
+        text-transform: none;
+    }
+    .sidebar-msa-docid {
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 0.72rem !important;
+        color: #d4d4d8 !important;
+        margin: 0.35rem 0 0;
+    }
+    .sidebar-msa-docid code {
+        color: #86efac !important;
+        font-size: 0.72rem !important;
     }
 
     .main h2, .main h3, .main h4, .main h5 {
@@ -1235,7 +1504,7 @@ st.markdown("""
         gap: 0.65rem;
     }
     [data-testid="stFileUploaderDropzone"]::before {
-        content: "SECURE DATA UPLINK";
+        content: "NEURAL REVENUE RECOVERY";
         font-family: 'JetBrains Mono', ui-monospace, monospace !important;
         letter-spacing: 0.18em;
         color: #E0E0E0;
@@ -1313,15 +1582,51 @@ st.markdown("""
         box-shadow: none !important;
     }
 
-    /* THE VAULT — institutional KPI strip (emerald) */
+    /* Neural Audit Summary — hero + KPI strip (emerald) */
+    .neural-audit-summary-hero {
+        text-align: center;
+        padding: 1.25rem 1rem 1.1rem;
+        margin: 0.5rem 0 1rem;
+        background: #0D0D0D;
+        border: 1px solid #262626;
+        border-radius: 2px;
+    }
+    .neural-audit-summary-hero .na-hero-label {
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 0.68rem !important;
+        letter-spacing: 0.22em !important;
+        color: rgba(250, 250, 250, 0.88) !important;
+        text-transform: uppercase;
+        margin-bottom: 0.65rem;
+    }
+    .neural-audit-summary-hero .na-hero-amount {
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: clamp(1.85rem, 4vw, 2.65rem) !important;
+        font-weight: 600 !important;
+        color: #00FF41 !important;
+        line-height: 1.15;
+        letter-spacing: 0.04em;
+    }
+    .neural-audit-summary-hero .na-hero-hint {
+        font-size: 0.65rem !important;
+        color: rgba(224, 224, 224, 0.55) !important;
+        margin-top: 0.55rem;
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
     .vault-institutional-metrics {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 1rem;
         margin: 0.5rem 0 1.25rem;
     }
+    .vault-institutional-metrics.vault-sub-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     @media (max-width: 900px) {
         .vault-institutional-metrics { grid-template-columns: 1fr; }
+        .vault-institutional-metrics.vault-sub-metrics { grid-template-columns: 1fr; }
     }
     .vault-metric-card {
         background: #0D0D0D !important;
@@ -1725,17 +2030,281 @@ st.markdown("""
         border-color: #33ff66 !important;
     }
 
-    /* Footer */
+    /* Streamlit alerts — dark chrome (no bright white overlays on Operations) */
+    div[data-testid="stAlert"] {
+        background-color: #111111 !important;
+        border: 1px solid #2f2f2f !important;
+        color: #e5e5e5 !important;
+    }
+    div[data-testid="stAlert"] p,
+    div[data-testid="stAlert"] li,
+    div[data-testid="stAlert"] span {
+        color: #e5e5e5 !important;
+    }
+    /* Demo / Paystack Reviewer (Slate Dark) */
+    .demo-audit-hero, .paystack-reviewer-hero {
+        text-align: center;
+        padding: 1.5rem 1rem 1.25rem;
+        margin: 0 0 1.25rem 0;
+        background: #0f172a !important;
+        border: 1px solid #334155 !important;
+        border-radius: 4px;
+    }
+    .demo-audit-title {
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 1.35rem !important;
+        letter-spacing: 0.2em !important;
+        color: #f1f5f9 !important;
+        text-transform: uppercase;
+        margin-bottom: 0.5rem;
+    }
+    .demo-audit-sub {
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 0.72rem !important;
+        letter-spacing: 0.12em !important;
+        color: #38bdf8 !important;
+        text-transform: uppercase;
+    }
+    .reviewer-recoverable-hero {
+        text-align: center;
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 0.72rem !important;
+        letter-spacing: 0.14em !important;
+        color: #94a3b8 !important;
+        text-transform: uppercase;
+        margin: 0.75rem 0 1rem;
+        padding: 1rem;
+        background: #0f172a !important;
+        border: 1px solid #334155 !important;
+        border-radius: 4px;
+    }
+    .reviewer-recoverable-hero .reviewer-usd {
+        display: block;
+        font-size: clamp(1.65rem, 4vw, 2.15rem) !important;
+        font-weight: 600 !important;
+        color: #38bdf8 !important;
+        letter-spacing: 0.04em !important;
+        margin-top: 0.5rem;
+        text-transform: none !important;
+    }
+    .reviewer-recoverable-hero .reviewer-hero-sub {
+        display: block;
+        font-size: 0.62rem !important;
+        letter-spacing: 0.12em !important;
+        color: #64748b !important;
+        margin-top: 0.45rem;
+        text-transform: uppercase;
+    }
+    .reviewer-sidebar-executive {
+        margin: 0.75rem 0 0.5rem 0;
+        padding: 0.65rem 0.7rem;
+        border: 1px solid rgba(51, 65, 85, 0.9);
+        border-radius: 4px;
+        background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+    }
+    .reviewer-sidebar-executive .rse-head {
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 0.58rem !important;
+        letter-spacing: 0.2em !important;
+        text-transform: uppercase;
+        color: #94a3b8 !important;
+        margin: 0 0 0.45rem 0 !important;
+    }
+    .reviewer-sidebar-executive .rse-line {
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 0.72rem !important;
+        line-height: 1.45;
+        color: #f1f5f9 !important;
+        margin: 0.2rem 0 !important;
+    }
+    .reviewer-sidebar-executive .rse-cfo {
+        color: #38bdf8 !important;
+    }
+    .reviewer-footer-lock {
+        margin-top: 1.25rem;
+        padding: 0.85rem 1rem;
+        text-align: center;
+        border-top: 1px solid rgba(212, 175, 55, 0.28);
+        border-bottom: 1px solid rgba(212, 175, 55, 0.15);
+        background: #020617;
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+    }
+    .reviewer-footer-lock .rfl-addr {
+        font-size: 0.72rem !important;
+        letter-spacing: 0.08em !important;
+        color: #e2e8f0 !important;
+        margin: 0 0 0.35rem 0 !important;
+    }
+    .reviewer-footer-lock .rfl-mid {
+        font-size: 0.68rem !important;
+        letter-spacing: 0.12em !important;
+        color: #a3e635 !important;
+        margin: 0 0 0.5rem 0 !important;
+    }
+    .reviewer-footer-lock .rfl-copy {
+        font-size: 0.58rem !important;
+        letter-spacing: 0.14em !important;
+        color: #64748b !important;
+        text-transform: uppercase;
+        margin: 0 !important;
+    }
+    .reviewer-section-title {
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 0.68rem !important;
+        letter-spacing: 0.16em !important;
+        text-transform: uppercase;
+        color: #94a3b8 !important;
+        margin: 1rem 0 0.5rem !important;
+    }
+    .reviewer-roles-strip p {
+        margin-bottom: 0.5rem !important;
+    }
+    .neural-audit-demo-executive .demo-exec-line {
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 0.92rem !important;
+        letter-spacing: 0.06em !important;
+        color: #f1f5f9 !important;
+        margin-bottom: 0.45rem !important;
+    }
+    .neural-audit-demo-executive .demo-address-line {
+        font-size: 0.82rem !important;
+        color: #bae6fd !important;
+        border-top: 1px solid rgba(51, 65, 85, 0.65);
+        padding-top: 0.65rem !important;
+        margin-top: 0.5rem !important;
+    }
+    .neural-audit-demo-executive .demo-merchant-line {
+        font-size: 0.72rem !important;
+        letter-spacing: 0.08em !important;
+        color: #94a3b8 !important;
+        margin-top: 0.5rem !important;
+    }
+    .senturion-dark-panel {
+        background: #0f172a !important;
+        border: 1px solid #334155 !important;
+        border-radius: 4px !important;
+        padding: 1rem 1.15rem !important;
+        margin-bottom: 1.25rem !important;
+        color: #cbd5e1 !important;
+        font-size: 0.88rem !important;
+        line-height: 1.55 !important;
+    }
+    .senturion-dark-panel p { margin: 0 0 0.65rem 0; color: #cbd5e1 !important; }
+    .senturion-dark-panel p:last-child { margin-bottom: 0; }
+    .senturion-dark-callout {
+        background: #111111 !important;
+        border: 1px solid #2f2f2f !important;
+        border-radius: 2px !important;
+        padding: 0.65rem 0.85rem !important;
+        margin: 0.5rem 0 0.75rem 0 !important;
+        color: #d4d4d4 !important;
+        font-size: 0.82rem !important;
+        line-height: 1.45 !important;
+    }
+
+    /* Mandatory KYC strip — all pages */
+    .kyc-footer-bar {
+        margin-top: 1.25rem;
+        padding: 0.65rem 0.75rem;
+        border-top: 1px solid rgba(212, 175, 55, 0.25);
+        border-bottom: 1px solid rgba(212, 175, 55, 0.15);
+        background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 0.58rem !important;
+        letter-spacing: 0.1em !important;
+        color: #e8e8e8 !important;
+        text-align: center;
+        text-transform: none !important;
+    }
+    .kyc-footer-legal strong {
+        color: #f8fafc !important;
+        font-weight: 700 !important;
+    }
+    a.reviewer-pay-link {
+        display: inline-block;
+        margin-top: 0.75rem;
+        padding: 0.65rem 1rem;
+        background: #0ea5e9 !important;
+        color: #0f172a !important;
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-weight: 600;
+        text-decoration: none !important;
+        border-radius: 4px;
+        border: 1px solid #38bdf8;
+    }
+
+    /* Footer — dark executive band (partners / internal only; not shown to clinic role) */
     .quantum-footer {
         margin-top: 2rem;
-        padding-top: 1rem;
-        border-top: 1px solid #262626;
+        padding: 1.25rem 1rem 1rem;
+        border-top: 1px solid #1f2937;
+        background: linear-gradient(180deg, #0a0a0a 0%, #050505 100%);
+        border-radius: 2px;
         font-family: 'JetBrains Mono', ui-monospace, monospace !important;
-        font-size: 0.6rem;
-        color: #6b7280 !important;
-        letter-spacing: 2px;
+        font-size: 0.62rem;
+        color: #9ca3af !important;
+        letter-spacing: 0.12em;
         text-transform: uppercase;
         text-align: center;
+    }
+    .quantum-footer-sub {
+        display: block;
+        margin-top: 0.55rem;
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 0.62rem !important;
+        letter-spacing: 0.08em !important;
+        color: #a1a1aa !important;
+        text-transform: none !important;
+        line-height: 1.5;
+    }
+    .quantum-footer-addr {
+        display: block;
+        margin-top: 0.65rem;
+        font-size: 0.6rem !important;
+        letter-spacing: 0.06em !important;
+        color: #d4d4d8 !important;
+        text-transform: none !important;
+    }
+    .quantum-footer-mail a {
+        color: #4ade80 !important;
+        text-decoration: none !important;
+        font-weight: 500;
+    }
+    .quantum-footer-mail a:hover {
+        text-decoration: underline !important;
+    }
+    .footer-db-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin-left: 0.4rem;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    .footer-db-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+    .footer-db-dot.db-dot-online {
+        background: #00FF41 !important;
+        box-shadow: 0 0 10px rgba(0, 255, 65, 0.85);
+    }
+    .footer-db-dot.db-dot-offline {
+        background: #6b7280 !important;
+        box-shadow: none;
+    }
+    .footer-db-txt {
+        font-size: 0.58rem !important;
+        letter-spacing: 0.06em !important;
+        text-transform: none !important;
+    }
+    .footer-db-txt.footer-db-on {
+        color: #a3e635 !important;
+    }
+    .footer-db-txt.footer-db-off {
+        color: #9ca3af !important;
     }
 
     .stButton > button[kind="primary"],
@@ -4253,7 +4822,7 @@ def _ghost_worker_main(files_data: list[tuple[str, bytes]], job_id: str) -> None
         completed += 1
         pct = (completed / max(total, 1)) * 100.0
         line = (
-            f"Senturion Predator · Shredding Batch [{batch_tag}] · {completed}/{total} · {label} · {pct:.0f}%"
+            f"Neural Revenue Recovery · batch [{batch_tag}] · {completed}/{total} · {label} · {pct:.0f}%"
         )
         if extra:
             line += f" · {extra}"
@@ -4275,7 +4844,7 @@ def _ghost_worker_main(files_data: list[tuple[str, bytes]], job_id: str) -> None
             _bump_progress(
                 name,
                 lbl,
-                "skipped — duplicate intake (SHA-256 audit hash; no AI / no vault double-count)",
+                "skipped — duplicate file (already processed)",
             )
             continue
         batch_seen.add(h)
@@ -4326,7 +4895,7 @@ def _ghost_worker_main(files_data: list[tuple[str, bytes]], job_id: str) -> None
     finally:
         if dup_names:
             msg = (
-                f"Skipped {len(dup_names)} duplicate file(s) (already in intake audit hash registry): "
+                f"Skipped {len(dup_names)} duplicate file(s) (already processed): "
                 + "; ".join(dup_names[:12])
             )
             if len(dup_names) > 12:
@@ -4338,7 +4907,7 @@ def _ghost_worker_main(files_data: list[tuple[str, bytes]], job_id: str) -> None
             _GHOST_STATE["pct"] = 100.0
             _GHOST_STATE["files_completed"] = total
             _GHOST_STATE["status_line"] = (
-                f"Senturion Predator · Shredding Batch [{batch_tag}] · complete · {total} file(s)"
+                f"Neural Revenue Recovery · batch [{batch_tag}] · complete · {total} file(s)"
             )
             _GHOST_STATE["pending_errors"] = list(errors)
 
@@ -4367,7 +4936,7 @@ def _ghost_start_batch(uploaded_list: list) -> None:
         _GHOST_STATE["current_label"] = ""
         _GHOST_STATE["estimated_recoverable_usd"] = 0.0
         _GHOST_STATE["status_line"] = (
-            f"Senturion Predator · Shredding Batch [{job_id[:8].upper()}] · initializing…"
+            f"Neural Revenue Recovery · batch [{job_id[:8].upper()}] · initializing…"
         )
         _GHOST_STATE["pending_merge_queue"] = []
         _GHOST_STATE["pending_errors"] = []
@@ -4482,29 +5051,30 @@ def _render_industrial_intake_telemetry_fragment() -> None:
     _batch_tag = _jid[:8].upper() if _jid else "BATCH"
     st.markdown(
         f'<div class="neural-telemetry-bar">'
-        f'<span class="neural-telemetry-title">Neural Telemetry</span>'
-        f'<span class="mono neural-telemetry-metrics">Predator Shredding Batch: {_fc}/{max(_tot, 1)}… '
-        f"Estimated Recoverable Found: ${_est:,.0f}</span>"
+        f'<span class="neural-telemetry-title">Neural Revenue Recovery · Secure Clinical Logic</span>'
+        f'<span class="mono neural-telemetry-metrics">Progress {_fc}/{max(_tot, 1)} · '
+        f"Recoverable identified: ${_est:,.0f}</span>"
         f"</div>",
         unsafe_allow_html=True,
     )
     st.markdown(
         f'<p class="inst-neural-data-mode-title" style="margin-bottom:0.35rem;">'
-        f'Senturion Predator: Shredding Batch <span class="mono">[{_batch_tag}]</span></p>',
+        f'Data batch <span class="mono">[{_batch_tag}]</span></p>',
         unsafe_allow_html=True,
     )
     st.progress(min(_pct / 100.0, 1.0))
     if _run:
         st.caption(
-            f"**Industrial Intake:** background sink → Revenue Vault each **{GHOST_FRAGMENT_POLL_SEC:.1f}s** tick "
-            f"(no full-page refresh). Files completed: **{_fc}** / **{_tot}**."
+            f"**Neural Revenue Recovery:** Secure Clinical Logic in progress. Files completed: **{_fc}** / **{_tot}**."
         )
-        st.info(
-            "Background pool is shredding PDFs — vault rows merge incrementally via the fragment poller."
+        st.markdown(
+            '<div class="senturion-dark-callout">Secure Clinical Logic — rows merge incrementally '
+            "into your Neural Audit Summary.</div>",
+            unsafe_allow_html=True,
         )
     elif _fin:
         st.success(
-            "Industrial Intake batch finished. Review the ledger and extraction table below."
+            "Uplink batch complete. Review the Neural Audit Ledger and extraction table below."
         )
     else:
         st.caption("Session extraction batch — preview below.")
@@ -4719,6 +5289,8 @@ def _gemini_extract_chunk_raw(
     total_chunks: int,
 ) -> tuple[str, int | None, str | None]:
     """Single Gemini extraction call; logs timeouts; no Streamlit error UI."""
+    if model is None:
+        return "", None, None
     gen_config = {"max_output_tokens": 4096, "temperature": 0.0}
     _intel_pre = _build_gemini_payer_intel_prefix()
     full_prompt = (
@@ -4877,7 +5449,7 @@ def extract_denial_data(text: str, *, headless: bool = False) -> tuple[list[dict
     for idx, chunk in enumerate(chunks):
         if progress_text is not None:
             progress_text.info(
-                f"⚡ Senturion Predator: Processing Chunk {idx + 1}/{len(chunks)}..."
+                f"Neural Revenue Recovery: processing segment {idx + 1}/{len(chunks)}…"
             )
         rows, frags = _predator_process_one_chunk(chunk, idx, len(chunks), meta)
         all_extracted_rows.extend(rows)
@@ -4891,7 +5463,7 @@ def extract_denial_data(text: str, *, headless: bool = False) -> tuple[list[dict
     all_extracted_rows = _apply_extraction_sanity_flags(all_extracted_rows)
     all_extracted_rows = _apply_high_value_urgency_tags(all_extracted_rows)
     if progress_text is not None:
-        progress_text.success("✅ Batch Audit Complete. Vault Updated.")
+        progress_text.success("✅ Neural audit segment complete. Neural Audit Summary updated.")
     meta["status"] = "SUCCESS"
     return (all_extracted_rows if all_extracted_rows else []), meta
 
@@ -5272,6 +5844,10 @@ def _mark_batch_statutory_enforced(batch_sig: str | None) -> None:
 
 def _gemini_generate_appeal_text_for_row(row: dict) -> str:
     """Single-claim appeal body via Gemini (mirrors Appeal Engine pipeline)."""
+    if model is None:
+        return (
+            "ADMINISTRATIVE NOTICE:\n\nAppeal drafting engine unavailable — configure GEMINI_API_KEY in secrets."
+        )
     ctx = _build_smart_context(row)
     ctx = _text_only_for_prompt(ctx.strip())
     if not ctx:
@@ -6130,13 +6706,82 @@ def _treasury_wallet_qr_placeholder_png() -> bytes:
     return buf.getvalue()
 
 
-def _equity_percentages_raw() -> tuple[float, float]:
-    """Monré / Eddie equity weights (0–100 each) from session; default 50/50."""
-    st.session_state.setdefault("admin_monre_equity_pct", DEFAULT_MONRE_EQUITY_PCT)
-    st.session_state.setdefault("admin_eddie_equity_pct", DEFAULT_EDDIE_EQUITY_PCT)
-    m = float(st.session_state.get("admin_monre_equity_pct") or DEFAULT_MONRE_EQUITY_PCT)
-    e = float(st.session_state.get("admin_eddie_equity_pct") or DEFAULT_EDDIE_EQUITY_PCT)
-    return m, e
+def _signed_msa_doc_id_footer() -> str:
+    """Auditor-facing Merchant Agreement DocID (official identifier for partners)."""
+    return str(MSA_MERCHANT_DOC_ID)
+
+
+def _msa_doc_id_display() -> str:
+    """Short UI form (e.g. 0f3a498…)."""
+    h = str(MSA_MERCHANT_DOC_ID).strip()
+    return f"{h[:7]}…" if len(h) > 7 else h
+
+
+def _paystack_net_usd(gross_usd: float) -> float:
+    """USD amount after estimated Paystack international card fee (deducted from gross)."""
+    return float(gross_usd) * (1.0 - PAYSTACK_INTL_CARD_FEE_PCT)
+
+
+def _standard_audit_fee_partner_split_usd(
+    gross_usd: float | None = None,
+) -> tuple[float, float, float, float, float]:
+    """
+    Revenue engine — canonical **50/50 net** split on each incoming **$2,625** audit fee
+    (or any override gross): gross → est. Paystack → net USD → equal CEO/CFO shares on net.
+
+    Returns ``(gross, paystack_est, net, ceo_net, cfo_net)``.
+    """
+    g = float(AUDIT_FEE_USD_STANDARD if gross_usd is None else gross_usd)
+    ps = g * PAYSTACK_INTL_CARD_FEE_PCT
+    net = _paystack_net_usd(g)
+    half = net * 0.5
+    return (g, ps, net, half, half)
+
+
+def _capitec_statement_abs_path() -> str:
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), CAPITEC_STATEMENT_FILENAME)
+
+
+def _read_capitec_statement_bytes() -> bytes | None:
+    p = _capitec_statement_abs_path()
+    if not os.path.isfile(p):
+        return None
+    try:
+        with open(p, "rb") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+@st.cache_data(ttl=FX_CACHE_TTL_SEC, show_spinner=False)
+def _fetch_usd_zar_rate_live() -> float:
+    """
+    Live USD → ZAR (mid). Cached ~1h. Uses public FX endpoints (no API key).
+    Falls back to FX_FALLBACK_USD_ZAR if unreachable.
+    """
+    if requests is None:
+        return float(FX_FALLBACK_USD_ZAR)
+    headers = {"User-Agent": "Senturion-BPO/1.0 (CFO FX)"}
+    endpoints = (
+        "https://api.frankfurter.app/latest?from=USD&to=ZAR",
+        "https://api.exchangerate-api.com/v4/latest/USD",
+    )
+    for url in endpoints:
+        try:
+            r = requests.get(url, timeout=12, headers=headers)
+            r.raise_for_status()
+            data = r.json()
+            rates = data.get("rates") or {}
+            z = rates.get("ZAR")
+            if z is not None:
+                return float(z)
+        except Exception:
+            continue
+    return float(FX_FALLBACK_USD_ZAR)
+
+
+def _usd_to_zar(usd: float, zar_per_usd: float) -> float:
+    return float(usd) * float(zar_per_usd)
 
 
 def _vault_entries_for_scope(vf: str) -> list[dict]:
@@ -6170,25 +6815,36 @@ def _partner_claim_display_id(entry: dict) -> str:
 def _append_partner_settlement_rows_for_scope(vf: str) -> None:
     """
     Partner Settlement Log — one row per vault claim in scope when payment is COLLECTED.
-    Splits each claim's 15% fee by Monré / Eddie equity % (Admin).
+    Gross 15% fee → subtract est. Paystack intl. fee → net USD → 50/50 CEO/CFO.
+    ZAR columns use live USD/ZAR at append time (cached FX).
     """
-    m_eq, e_eq = _equity_percentages_raw()
     entries = _vault_entries_for_scope(vf)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log = st.session_state.setdefault("partner_settlement_log", [])
+    half = 0.5
+    fx = _fetch_usd_zar_rate_live()
     for entry in entries:
         amt = _vault_amount_for_entry(entry)
-        fee = float(amt) * FOUNDERS_COMMISSION_RATE
-        monre = fee * (m_eq / 100.0)
-        eddie = fee * (e_eq / 100.0)
+        fee_gross = float(amt) * FOUNDERS_COMMISSION_RATE
+        fee_paystack = fee_gross * PAYSTACK_INTL_CARD_FEE_PCT
+        fee_net = _paystack_net_usd(fee_gross)
+        ceo_usd = fee_net * half
+        cfo_usd = fee_net * half
+        ceo_zar = _usd_to_zar(ceo_usd, fx)
+        cfo_zar = _usd_to_zar(cfo_usd, fx)
         vid = str(entry.get("vault_id") or "")
         log.append(
             {
                 "Date": now,
                 "Claim ID": _partner_claim_display_id(entry),
-                "Total Fee": round(fee, 2),
-                "Monré Split": round(monre, 2),
-                "Eddie Split": round(eddie, 2),
+                "Gross Fee (USD)": round(fee_gross, 2),
+                "Paystack est. (USD)": round(fee_paystack, 2),
+                "Net Fee (USD)": round(fee_net, 2),
+                "CEO Net (USD)": round(ceo_usd, 2),
+                "CFO Net (USD)": round(cfo_usd, 2),
+                "CEO Net (ZAR)": round(ceo_zar, 2),
+                "CFO Net (ZAR)": round(cfo_zar, 2),
+                "FX USD/ZAR": round(fx, 4),
                 "Status": "🟢 COLLECTED",
                 "Scope": str(vf),
                 "vault_id": vid,
@@ -6301,7 +6957,7 @@ section.main div[data-testid="stDownloadButton"] button {
         'color:#E0E0E0;text-transform:uppercase;margin:0.5rem 0 0.35rem;">Denial heatmap · by insurer</p>',
         unsafe_allow_html=True,
     )
-    st.caption("Estimated recovery exposure by payer (from your Revenue Vault).")
+    st.caption("Estimated recovery exposure by payer (from your Neural Audit Summary).")
     heat_df = _vault_insurer_heatmap_df()
     if heat_df.empty or float(heat_df["Recovery ($)"].sum()) <= 0:
         st.info("No insurer-level data yet — run a neural audit or sync denials to populate the vault.")
@@ -6382,7 +7038,7 @@ def _render_vault_institutional_dashboard() -> None:
         return _clinic_display_name(k)
 
     st.selectbox(
-        "Filter Revenue Vault by clinic",
+        "Filter Neural Audit Summary by clinic",
         options=_opts,
         format_func=_vault_filter_label,
         key="vault_clinic_filter",
@@ -6397,21 +7053,21 @@ def _render_vault_institutional_dashboard() -> None:
     _rfl = " vault-recoverable-flash" if _pulse else ""
     st.markdown(
         f"""
-<div class="vault-institutional-metrics">
-  <div class="vault-metric-card">
-    <div class="vault-metric-label">TOTAL RECOVERABLE REVENUE</div>
-    <div class="vault-metric-value{_rfl}" style="color:{VAULT_EMERALD};">${total:,.2f}</div>
-    <div class="vault-metric-hint">Sum of Amount Denied (Vault)</div>
-  </div>
+<div class="neural-audit-summary-hero">
+  <div class="na-hero-label">Neural Audit Summary</div>
+  <div class="na-hero-amount{_rfl}">${total:,.2f}</div>
+  <div class="na-hero-hint">Total recoverable exposure · Amount Denied</div>
+</div>
+<div class="vault-institutional-metrics vault-sub-metrics">
   <div class="vault-metric-card">
     <div class="vault-metric-label">STATUTORY ENFORCEMENT RATE</div>
     <div class="vault-metric-value" style="color:{VAULT_EMERALD};">{rate:.1f}%</div>
     <div class="vault-metric-hint">Claims in STATUTORY appeal mode</div>
   </div>
   <div class="vault-metric-card">
-    <div class="vault-metric-label">FOUNDERS COMMISSION (15%)</div>
+    <div class="vault-metric-label">SENTURION SUCCESS FEE (15%)</div>
     <div class="vault-metric-value{_founders_glow}" style="color:{VAULT_EMERALD};">${founders:,.2f}</div>
-    <div class="vault-metric-hint">Senturion entitlement (real-time)</div>
+    <div class="vault-metric-hint">Fee pool on recoverable (real-time)</div>
   </div>
 </div>
 """,
@@ -6445,11 +7101,11 @@ def _render_institutional_ledger(*, show_title: bool = True) -> None:
     _q = _vault_entries_quarantine()
     if show_title:
         st.markdown(
-            '<div class="projection-table-cap">Institutional Ledger</div>',
+            '<div class="projection-table-cap">Neural Audit Ledger</div>',
             unsafe_allow_html=True,
         )
     if not vault and not _q:
-        st.caption("No claims in the Vault yet. Run a neural audit to deposit rows.")
+        st.caption("No claims in the Neural Audit Summary yet. Run a neural audit to deposit rows.")
         return
     if not vault and _q:
         st.warning(
@@ -6584,7 +7240,7 @@ def _render_vault_master_certificate_panel() -> None:
     _ensure_clinic_profiles()
     st.markdown("##### Vault · Senturion Audit Certificate")
     st.caption(
-        "**Senturion Audit Certificate** for the **entire Revenue Vault** (active clinic): **Total Recovery Target**, "
+        "**Senturion Audit Certificate** for the **entire Neural Audit Summary** (active clinic): **Total Recovery Target**, "
         "**Audit Tracking Hash**, **Legal Compliance Disclaimer**, EB Garamond / Titanium Silver styling, and a "
         "**fail-safe footer hash** on every page."
     )
@@ -6627,7 +7283,7 @@ def _render_neural_vault_block() -> None:
     _render_vault_master_certificate_panel()
     st.markdown(
         '<div class="holographic-table institutional-ledger-shell"><div class="projection-table-cap">'
-        "THE VAULT · INSTITUTIONAL LEDGER</div>",
+        "NEURAL AUDIT LEDGER</div>",
         unsafe_allow_html=True,
     )
     _render_institutional_ledger(show_title=False)
@@ -6811,6 +7467,26 @@ def _render_kpi_grid() -> None:
 
 def _render_hud_title(title_html: str) -> None:
     st.markdown(title_html, unsafe_allow_html=True)
+
+
+def _render_executive_dashboard_header() -> None:
+    """
+    Partner War Room / Agent: branded title + top-right compliance badge.
+    **Clinic** users must never call this (no CEO/CFO chrome).
+    """
+    perms = check_permissions()
+    if perms.can_clinic_portal:
+        return
+    mid = html_std.escape(str(PAYSTACK_MERCHANT_ID))
+    st_esc = html_std.escape(str(PAYSTACK_MERCHANT_STATUS))
+    title_esc = html_std.escape(DASHBOARD_TITLE_LINE)
+    st.markdown(
+        f'<div class="executive-header-row">'
+        f'<h1 class="hud-title hud-title-mirror executive-header-h1">{title_esc}</h1>'
+        f'<div class="compliance-badge">Merchant ID: {mid} | Status: {st_esc}</div>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _appeal_engine_auto_switch_module() -> None:
@@ -7014,7 +7690,7 @@ def _render_neural_extraction_results(
         "Validation",
     ]
     st.markdown(
-        '<p class="projection-table-cap">Extracted claims · sanity check</p>',
+        '<p class="projection-table-cap">Extracted claims · validation review</p>',
         unsafe_allow_html=True,
     )
     def _neural_cell(r: dict, c: str) -> str:
@@ -7086,7 +7762,7 @@ def _render_neural_ghost_live_preview(data: list[dict], *, show_downloads: bool 
         "Validation",
     ]
     st.markdown(
-        '<p class="projection-table-cap">Ghost batch · live extraction</p>',
+        '<p class="projection-table-cap">Live uplink · extraction preview</p>',
         unsafe_allow_html=True,
     )
 
@@ -7147,18 +7823,16 @@ def _render_neural_audit_module() -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<p class="inst-neural-data-mode-title">Data Input Mode</p>',
+        '<p class="inst-neural-data-mode-title">Neural Revenue Recovery · Secure Clinical Logic</p>',
         unsafe_allow_html=True,
     )
     tab_uplink, tab_paste = st.tabs(["📁 Secure File Uplink", "📝 Manual Data Paste"])
 
     with tab_uplink:
         st.caption(
-            "**Industrial Intake:** multi-select **100+ PDFs** in the file dialog (folder-style). "
-            f"**{GHOST_ASYNC_THRESHOLD}+** files run **off-thread** with **ThreadPoolExecutor** "
-            f"({MASSIVE_INTAKE_MAX_WORKERS} concurrent shredders). Merge queue drains into the **Revenue Vault** "
-            f"every **{GHOST_FRAGMENT_POLL_SEC:.1f}s** without a full-page refresh. "
-            "Duplicates skip via **SHA-256** audit hash."
+            "**Neural Revenue Recovery · Secure Clinical Logic** — multi-select **100+ PDFs** in the file dialog. "
+            "High-volume batches process securely in the background; results merge into your **Neural Audit Summary** "
+            "without a full-page refresh. Duplicate files are detected and skipped automatically."
         )
         st.caption("High-density PDFs may truncate; use **Manual Data Paste** if extraction is incomplete.")
         uploaded_files = st.file_uploader(
@@ -7186,7 +7860,11 @@ def _render_neural_audit_module() -> None:
 
         if not uploaded_files:
             st.session_state.pop("_ghost_started_sig", None)
-            st.info("Upload PDF denial letters or claim documents — multi-select for batch / folder-style intake.")
+            st.markdown(
+                '<div class="senturion-dark-callout">Upload PDF denial letters or claim documents — multi-select for '
+                "batch intake.</div>",
+                unsafe_allow_html=True,
+            )
         else:
             ufs = list(uploaded_files)
             n = len(ufs)
@@ -7210,7 +7888,7 @@ def _render_neural_audit_module() -> None:
                         st.session_state["_ghost_started_sig"] = _sig
                         _ghost_start_batch(ufs)
                         _append_audit_log(
-                            f"Industrial Intake / Senturion Predator started ({n} PDFs, max {MASSIVE_INTAKE_MAX_WORKERS} concurrent)."
+                            f"Neural Revenue Recovery: batch started ({n} PDF file(s), Secure Clinical Logic)."
                         )
                         st.rerun()
                 if hasattr(st, "fragment"):
@@ -7335,8 +8013,8 @@ def _render_session_client_queues() -> None:
 def _render_admin_role_directory() -> None:
     """Promote/demote any user by `profiles.role` (DB updates; users pick up on next rerun)."""
     st.caption(
-        "Assign **admin**, **agent**, or **client**. Target users see the new role on the next refresh "
-        "(session is synced from `profiles` each run)."
+        "Assign **admin**, **agent**, **client**, or **clinic** (restricted client-facing portal). "
+        "Target users see the new role on the next refresh (session is synced from `profiles` each run)."
     )
     sb = get_supabase()
     rows = _fetch_profiles_directory(sb)
@@ -7346,7 +8024,7 @@ def _render_admin_role_directory() -> None:
             "or verify the table exists."
         )
         return
-    role_order = ("pending_review", "admin", "agent", "client")
+    role_order = ("pending_review", "admin", "agent", "client", "clinic")
     for r in rows:
         rid = str(r.get("id", ""))
         if not rid:
@@ -7392,51 +8070,254 @@ def _render_user_management() -> None:
         _render_admin_role_directory()
 
 
+def _render_live_treasury_capitec() -> None:
+    """Capitec bank statement PDF for partner verification of ZAR opening balance (place file next to app.py)."""
+    st.markdown("##### Live Treasury · Bank statements")
+    st.caption(
+        f"**Capitec** statement dated **{CAPITEC_STATEMENT_DATE_LABEL}** — opening balance "
+        f"**R{CAPITEC_OPENING_BALANCE_ZAR:,.2f}** (auditor / partner verification)."
+    )
+    _pdf_b = _read_capitec_statement_bytes()
+    if _pdf_b:
+        try:
+            if hasattr(st, "pdf"):
+                st.pdf(_pdf_b, height=520)
+            else:
+                st.download_button(
+                    "Download Capitec statement (PDF)",
+                    data=_pdf_b,
+                    file_name=CAPITEC_STATEMENT_FILENAME,
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
+        except Exception:
+            st.warning("Could not display the treasury PDF file.")
+    else:
+        st.info(
+            f"Add **`{CAPITEC_STATEMENT_FILENAME}`** to the project folder (next to `app.py`) to enable the "
+            "inline PDF viewer."
+        )
+
+
+def _render_sidebar_founder_mirror() -> None:
+    """
+    Sidebar: Capitec statement (dated) + Paystack MSA DocID — visible to **both** partners (admin/agent).
+    Never shown to **clinic** or **client pitch view** (gated by caller + RBAC).
+    """
+    if st.session_state.get("client_view_mode"):
+        return
+    perms = check_permissions()
+    if not perms.can_financial_analytics or perms.can_clinic_portal:
+        return
+    with st.expander("Founder mirror · Live documents", expanded=False):
+        st.caption(f"**Capitec bank statement** — **{CAPITEC_STATEMENT_DATE_LABEL}**")
+        b = _read_capitec_statement_bytes()
+        if b:
+            st.download_button(
+                "Download Capitec statement (PDF)",
+                data=b,
+                file_name=CAPITEC_STATEMENT_FILENAME,
+                mime="application/pdf",
+                use_container_width=True,
+                key="sidebar_founder_capitec_dl",
+            )
+            if hasattr(st, "pdf"):
+                st.pdf(b, height=260)
+        else:
+            st.info(f"Add **`{CAPITEC_STATEMENT_FILENAME}`** next to `app.py` to enable preview.")
+        st.markdown("---")
+        st.caption("**Paystack — Merchant Service Agreement**")
+        st.markdown(
+            f'<p class="sidebar-msa-docid">Paystack MSA · DocID: <code>{html_std.escape(_msa_doc_id_display())}</code></p>',
+            unsafe_allow_html=True,
+        )
+        st.caption("Mirrored for **Eduard de Lange** (CEO) & **Monré Wessel Nagel** (CFO).")
+
+
 def _render_financial_analytics() -> None:
     """Read-only financial / pipeline metrics (extend with Supabase queries)."""
+    _fp = check_permissions()
+    if not _fp.can_financial_analytics or _fp.can_clinic_portal:
+        return
     with st.expander("Financial Analytics", expanded=False):
         vault_all = _vault_entries_displayable()
         _t_ov, _t_an, _t_pay = st.tabs(["Overview", "Clinic Analytics", "Payer Performance"])
         with _t_ov:
             st.caption("Operational metrics — wire to your warehouse or `claims` aggregates.")
             _exp = sum(_vault_amount_for_entry(e) for e in vault_all)
-            _m_eq, _e_eq = _equity_percentages_raw()
-            _sent_total = _exp * FOUNDERS_COMMISSION_RATE
-            _monre_share = _sent_total * (_m_eq / 100.0)
-            _eddie_share = _sent_total * (_e_eq / 100.0)
+            _gross_usd = _exp * FOUNDERS_COMMISSION_RATE
+            _paystack_usd = _gross_usd * PAYSTACK_INTL_CARD_FEE_PCT
+            _net_usd = _paystack_net_usd(_gross_usd)
+            _fx_zar = _fetch_usd_zar_rate_live()
+            _net_zar = _usd_to_zar(_net_usd, _fx_zar)
+            _ceo_net_usd = _net_usd * 0.5
+            _cfo_net_usd = _net_usd * 0.5
+            _ceo_net_zar = _usd_to_zar(_ceo_net_usd, _fx_zar)
+            _cfo_net_zar = _usd_to_zar(_cfo_net_usd, _fx_zar)
             c1, c2, c3 = st.columns(3)
             with c1:
-                st.metric("Vault recoverable (all clinics)", f"${_exp:,.2f}")
+                st.metric("Neural Audit recoverable (all clinics)", f"${_exp:,.2f}")
             with c2:
                 st.metric("Avg. cycle (days)", "—")
             with c3:
                 st.metric("Claims in vault", str(len(vault_all)))
             st.markdown("---")
-            st.markdown("##### Partner dashboard")
+            _role_fa = str(st.session_state.get("role") or "")
+            if _role_fa == "agent":
+                st.markdown("##### Treasury · Invoice clinic")
+                st.caption("Partner parity: **Agent** uses this strip when the War Room vault strip is not in view.")
+                _ensure_clinic_profiles()
+                _opts_fa = ["ALL"] + [p["clinic_id"] for p in st.session_state.clinic_profiles]
+                if st.session_state.get("vault_clinic_filter") not in _opts_fa:
+                    st.session_state.vault_clinic_filter = "ALL"
+
+                def _vault_filter_label_fa(k: str) -> str:
+                    if k == "ALL":
+                        return "All clinics"
+                    return _clinic_display_name(k)
+
+                st.selectbox(
+                    "Treasury scope (Neural Audit Summary)",
+                    options=_opts_fa,
+                    format_func=_vault_filter_label_fa,
+                    key="vault_clinic_filter",
+                )
+                _vf_scope_fa = str(st.session_state.get("vault_clinic_filter") or "ALL")
+                _sk_settle_fa = f"treasury_settlement_{_vf_scope_fa}"
+                st.session_state.setdefault(_sk_settle_fa, TREASURY_SETTLEMENT_OPTIONS[0])
+                _, _, _i3 = st.columns([1, 1, 1])
+                with _i3:
+                    st.markdown('<div class="treasury-invoice-wrap">', unsafe_allow_html=True)
+                    if st.button(
+                        "💳 INVOICE CLINIC",
+                        type="primary",
+                        use_container_width=True,
+                        key="treasury_invoice_fa_btn",
+                    ):
+                        st.session_state["_treasury_invoice_open"] = True
+                        st.rerun()
+                    st.markdown("</div>", unsafe_allow_html=True)
+                st.caption(
+                    f"**Settlement (this scope):** `{st.session_state.get(_sk_settle_fa, TREASURY_SETTLEMENT_OPTIONS[0])}` "
+                    "— open **Invoice clinic** to pay via Stripe / USDC and update status."
+                )
+                if st.session_state.get("_treasury_invoice_open"):
+                    treasury_invoice_dialog()
+                _treasury_celebrate_if_collected_transition(_vf_scope_fa)
+            elif _role_fa == "admin":
+                st.caption(
+                    "**Treasury · Invoice clinic:** use **💳 INVOICE CLINIC** on the **SNIPER** tab "
+                    "(Neural Audit Summary strip) — same settlement scope and **Partner Settlement Log**."
+                )
+            st.markdown("---")
+            _render_live_treasury_capitec()
+            st.markdown("---")
+            st.markdown("##### Projected earnings — $2,625 audit fee (50/50 net)")
+            _aud, _ps_aud, _net_aud, _pe_ceo, _pe_cfo = _standard_audit_fee_partner_split_usd()
+            pe_a, pe_b, pe_c = st.columns(3)
+            with pe_a:
+                st.metric(
+                    "Gross audit fee (USD)",
+                    f"${_aud:,.2f}",
+                    help="Standard per-audit fee — basis for projected partner nets.",
+                )
+            with pe_b:
+                st.metric(
+                    "Projected CEO net (USD)",
+                    f"${_pe_ceo:,.2f}",
+                    help="50% of net after Paystack — Eduard de Lange.",
+                )
+            with pe_c:
+                st.metric(
+                    "Projected CFO net (USD)",
+                    f"${_pe_cfo:,.2f}",
+                    help="50% of net after Paystack — Monré Wessel Nagel.",
+                )
             st.caption(
-                "Split of the **15% Senturion success fee** (vault-wide). "
-                f"Equity weights: **Monré {_m_eq:g}%** · **Eddie {_e_eq:g}%** — adjust in **Admin settings**."
+                f"Each **$2,625** audit fee: est. Paystack **${_ps_aud:,.2f}** → **${_net_aud:,.2f}** net USD → "
+                "**50% / 50%** to CEO / CFO."
             )
-            p1, p2, p3 = st.columns(3)
+            st.markdown("---")
+            st.markdown("##### Partner dashboard · CFO currency")
+            st.caption(
+                f"US clinics pay in **USD**. **Live FX:** 1 USD = **{_fx_zar:,.4f} ZAR** (cached {FX_CACHE_TTL_SEC // 60} min). "
+                f"**Paystack intl. card fee:** **{PAYSTACK_INTL_CARD_FEE_PCT * 100:.2f}%** of gross — deducted before the "
+                "**50% / 50%** split so **CEO (Eduard de Lange) / CFO (Monré Wessel Nagel)** shares reflect **net** profit."
+            )
+            g1, g2, g3, g4 = st.columns(4)
+            with g1:
+                st.metric(
+                    "Gross 15% fee (USD)",
+                    f"${_gross_usd:,.2f}",
+                    help="Full Senturion success-fee pool on vault recoverable (before Paystack).",
+                )
+            with g2:
+                st.metric(
+                    "Est. Paystack fee (USD)",
+                    f"${_paystack_usd:,.2f}",
+                    help=f"Approx. {PAYSTACK_INTL_CARD_FEE_PCT * 100:.1f}% international card fee on gross.",
+                )
+            with g3:
+                st.metric(
+                    "Net pool (USD)",
+                    f"${_net_usd:,.2f}",
+                    help="Gross minus estimated Paystack — basis for 50/50 split.",
+                )
+            with g4:
+                st.metric(
+                    "Net pool (ZAR)",
+                    f"R{_net_zar:,.2f}",
+                    help="Net USD converted at live USD/ZAR (CFO / Capitec view).",
+                )
+            p1, p2, p3, p4 = st.columns(4)
             with p1:
                 st.metric(
-                    "Total Senturion Revenue",
-                    f"${_sent_total:,.2f}",
-                    help="Full 15% founders pool on aggregate vault recoverable.",
+                    "💰 CEO net (USD)",
+                    f"${_ceo_net_usd:,.2f}",
+                    help="50% of net pool (after Paystack) — Eduard de Lange.",
                 )
             with p2:
-                st.metric("💰 Monré's Share", f"${_monre_share:,.2f}", help="Total × Monré equity %.")
+                st.metric(
+                    "💰 CFO net (USD)",
+                    f"${_cfo_net_usd:,.2f}",
+                    help="50% of net pool (after Paystack), Monré Wessel Nagel.",
+                )
             with p3:
-                st.metric("💰 Eddie's Share", f"${_eddie_share:,.2f}", help="Total × Eddie equity %.")
+                st.metric("💰 CEO net (ZAR)", f"R{_ceo_net_zar:,.2f}")
+            with p4:
+                st.metric("💰 CFO net (ZAR)", f"R{_cfo_net_zar:,.2f}")
             st.markdown("##### Partner Settlement Log")
             st.caption(
-                "Populated automatically when **Settlement Status** is set to **🟢 COLLECTED** in "
-                "**Invoice clinic** (Revenue Vault) — one row per claim in scope so partners see exact splits."
+                "Populated when **Settlement Status** is **🟢 COLLECTED** in **Invoice clinic**. "
+                "Each row: **gross 15% fee (USD)** → est. **Paystack** → **net USD** → **50/50 CEO/CFO**, plus **net ZAR** at live FX."
             )
             _plog = list(st.session_state.get("partner_settlement_log") or [])
             if _plog:
                 _pdf_pl = pd.DataFrame(_plog)
-                _show_cols = [c for c in ("Date", "Claim ID", "Total Fee", "Monré Split", "Eddie Split", "Status") if c in _pdf_pl.columns]
+                if "Monré Split" in _pdf_pl.columns:
+                    _pdf_pl = _pdf_pl.rename(
+                        columns={"Monré Split": "CFO Split (50%)", "Eddie Split": "CEO Split (50%)"}
+                    )
+                _show_cols = [
+                    c
+                    for c in (
+                        "Date",
+                        "Claim ID",
+                        "Gross Fee (USD)",
+                        "Paystack est. (USD)",
+                        "Net Fee (USD)",
+                        "CEO Net (USD)",
+                        "CFO Net (USD)",
+                        "CEO Net (ZAR)",
+                        "CFO Net (ZAR)",
+                        "FX USD/ZAR",
+                        "Status",
+                        "Total Fee",
+                        "CEO Split (50%)",
+                        "CFO Split (50%)",
+                    )
+                    if c in _pdf_pl.columns
+                ]
                 if _show_cols:
                     st.dataframe(
                         _pdf_pl[_show_cols].iloc[::-1],
@@ -7496,8 +8377,8 @@ def _render_pending_access_gate() -> None:
     """Restricted shell for users whose `profiles.role` is still `pending_review` (default after signup)."""
     _render_hud_title('<h1 class="hud-title">ACCESS PENDING REVIEW</h1>')
     st.info(
-        "Your account is pending review. You will be notified once an Admin grants you **Agent** or "
-        "**Client vault** access."
+        "Your account is pending review. You will be notified once an Admin grants you **Agent**, "
+        "**Client vault**, or **Clinic** portal access."
     )
     st.caption("You can sign out below. No billing or appeal data is available until your role is assigned.")
 
@@ -7591,6 +8472,103 @@ def _render_client_vault() -> None:
                     )
 
 
+def _render_clinic_portal() -> None:
+    """
+    Client-facing portal for `clinic` role: upload claims + view audit reports only.
+    No Capitec / treasury / founder equity / executive certificate tooling.
+    """
+    email = _client_email()
+    _ensure_claims_portal()
+    _render_hud_title(
+        '<h1 class="hud-title hud-title-mirror">'
+        "Senturion AI: Secure Medical Revenue Recovery Terminal"
+        "</h1>"
+    )
+    st.caption("Clinic access — restricted to submissions and your audit deliverables.")
+
+    with st.container(border=True):
+        st.markdown("### Upload Claims")
+        st.caption("Submit denial data as CSV (same schema as the secure client vault).")
+        up = st.file_uploader(
+            "Upload denial report (CSV)",
+            type=["csv"],
+            help="Columns: Patient ID, Denial Code; optional Reason, Fix Action, Place of Service (State), Law Cited.",
+            key="clinic_portal_csv",
+        )
+        if up is not None:
+            _sig = (getattr(up, "name", ""), getattr(up, "size", 0))
+            if st.session_state.get("_clinic_portal_csv_sig") != _sig:
+                rows, err = _parse_denial_csv(up)
+                if err:
+                    st.error(err)
+                elif rows:
+                    _merge_portal_claims(email, rows)
+                    st.session_state._clinic_portal_csv_sig = _sig
+                    st.success(f"Recorded {len(rows)} submission(s).")
+                    st.rerun()
+
+    db_raw = _fetch_client_view_claims()
+    if db_raw:
+        claims = [_normalize_client_view_row(r) for r in db_raw]
+    else:
+        claims = st.session_state.claims_portal.get(email, [])
+
+    st.markdown("---")
+    st.markdown("### View Audit Reports")
+    if not claims:
+        st.info("No audit reports yet. Upload a CSV above, or wait for database sync.")
+        return
+
+    display_rows = []
+    for c in claims:
+        display_rows.append(
+            {
+                "Patient ID": c.get("Patient ID"),
+                "Denial Code": c.get("Denial Code"),
+                "Reason": (c.get("Reason for Denial") or "")[:80],
+                "Place of Service (State)": c.get("Place of Service (State)") or "—",
+                "Law Cited": c.get("Law Cited") or "—",
+                "Denial Date": c.get("Denial Date") or "—",
+            }
+        )
+    st.dataframe(pd.DataFrame(display_rows), use_container_width=True, hide_index=True)
+
+    sb = get_supabase()
+    for c in claims:
+        with st.container(border=True):
+            st.markdown(f"**{c.get('Patient ID', '—')}** · `{c.get('Denial Code', '—')}`")
+            fin = (c.get("status") or "pending").lower() == "finished"
+            state = "complete" if fin else "running"
+            label = "Finished" if fin else "Pending"
+            with st.status(label, state=state):
+                if fin:
+                    st.caption("Audit package complete — download below.")
+                else:
+                    st.caption("Under review — you’ll be notified when the report is ready.")
+            docx = c.get("docx_bytes")
+            vault_path = c.get("vault_path")
+            dl_bytes = docx
+            dl_name = f"audit_report_{c.get('Patient ID', 'claim')}_{c.get('claim_id', '')}.docx"
+            dl_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            if not dl_bytes and vault_path:
+                dl_bytes = download_from_vault(sb, vault_path)
+                if dl_bytes:
+                    ext = vault_path.rsplit(".", 1)[-1].lower() if "." in vault_path else "bin"
+                    dl_name = f"audit_report_{c.get('Patient ID', 'claim')}_{c.get('claim_id', '')}.{ext}"
+                    if ext == "pdf":
+                        dl_mime = "application/pdf"
+            if dl_bytes:
+                st.download_button(
+                    "Download audit report",
+                    data=dl_bytes,
+                    file_name=dl_name,
+                    mime=dl_mime,
+                    type="primary",
+                    use_container_width=True,
+                    key=f"clinic_dl_{c.get('claim_id', id(c))}",
+                )
+
+
 def _render_verify_submit_tools() -> None:
     """Agent-only QA / handoff gate (no Neural Audit — compartmentalized)."""
     with st.expander("Verify / Submit", expanded=False):
@@ -7638,7 +8616,7 @@ def _render_enforcement_clock_agent_terminal() -> None:
             }
         )
     if not disp:
-        st.info("No **[ENFORCED]** claims in the current Revenue Vault filter — enforcement clock idle.")
+        st.info("No **[ENFORCED]** claims in the current Neural Audit filter — enforcement clock idle.")
         return
     df = pd.DataFrame(disp)
     try:
@@ -7689,7 +8667,7 @@ def _render_agent_terminal_batch_panel(clinic_name: str) -> None:
     st.markdown("#### Agent Terminal · Neural Triage & batch enforcement")
     st.caption(
         "Priority = **Potential Revenue × Win Probability**. **STATUTORY** appeals package into ZIP "
-        "(same batch as Revenue Vault / `neural_audit_batch`)."
+        "(same batch as Neural Audit Summary / `neural_audit_batch`)."
     )
     cur_sig = st.session_state.get("neural_audit_batch_sig")
     if st.session_state.get("_agent_batch_zip_sig") != cur_sig:
@@ -7830,7 +8808,7 @@ def _render_agent_terminal_batch_panel(clinic_name: str) -> None:
 
 def _render_agent_console(logo_file, clinic_name: str) -> None:
     st.session_state.active_module = "APPEAL"
-    _render_hud_title('<h1 class="hud-title">AGENT CONSOLE // APPEAL ENGINE</h1>')
+    _render_executive_dashboard_header()
     _render_kpi_grid()
     _appeal_engine_auto_switch_module()
     tab_appeal, tab_agent = st.tabs(["Appeal Engine", "Agent Terminal"])
@@ -7840,12 +8818,14 @@ def _render_agent_console(logo_file, clinic_name: str) -> None:
         _render_agent_terminal_batch_panel(clinic_name or "")
     st.markdown("---")
     _render_verify_submit_tools()
+    if check_permissions().can_financial_analytics:
+        _render_financial_analytics()
 
 
 def _render_admin_war_room(logo_file, clinic_name: str) -> None:
     if "active_module" not in st.session_state:
         st.session_state.active_module = "SNIPER"
-    _render_hud_title('<h1 class="hud-title">CLAIM SNIPER // NEURAL AUDIT</h1>')
+    _render_executive_dashboard_header()
     _render_kpi_grid()
     _render_module_switcher_admin()
     _appeal_engine_auto_switch_module()
@@ -8052,7 +9032,7 @@ def _render_neural_activity_sidebar_ghost() -> None:
     st.markdown("---")
     st.markdown(
         '<p style="font-family:JetBrains Mono,monospace;font-size:0.62rem;letter-spacing:0.2em;'
-        'color:#00FF41;text-transform:uppercase;margin-bottom:0.35rem;">Neural Activity · Ghost</p>',
+        'color:#d4af37;text-transform:uppercase;margin-bottom:0.35rem;">Neural Revenue Recovery · Status</p>',
         unsafe_allow_html=True,
     )
     st.caption(snap["status_line"])
@@ -8060,17 +9040,103 @@ def _render_neural_activity_sidebar_ghost() -> None:
     if snap["total_files"]:
         st.caption(f"Files in batch: **{snap['total_files']}**")
     if snap["errs"]:
-        with st.expander("Ghost warnings", expanded=False):
+        with st.expander("Processing notes", expanded=False):
             for e in snap["errs"]:
                 st.caption(e)
+
+
+def _paystack_release_checkout_url() -> str:
+    """Hosted Paystack page for Pay Release Fee (configure in secrets for production)."""
+    try:
+        if "PAYSTACK_RELEASE_CHECKOUT_URL" in st.secrets:
+            u = str(st.secrets["PAYSTACK_RELEASE_CHECKOUT_URL"]).strip()
+            if u:
+                return u
+    except Exception:
+        pass
+    return DEFAULT_PAYSTACK_RELEASE_CHECKOUT_URL
+
+
+def _render_demo_audit_page() -> None:
+    """Neural Audit Demo — Paystack Reviewer (reviews@paystack.com): polished cohort + Pay Now."""
+    _mid_esc = html_std.escape(str(PAYSTACK_MERCHANT_ID))
+    st.markdown(
+        """
+<div class="demo-audit-hero paystack-reviewer-hero">
+  <div class="demo-audit-title">Neural Audit Demo</div>
+  <div class="demo-audit-sub">Senturion AI Solutions · Merchant verification preview</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="senturion-dark-panel reviewer-roles-strip neural-audit-demo-executive">'
+        "<p class=\"demo-exec-line\"><strong>CEO:</strong> Eduard de Lange</p>"
+        "<p class=\"demo-exec-line\"><strong>CFO:</strong> Monré Wessel Nagel</p>"
+        f"<p class=\"demo-address-line\"><strong>Registered address:</strong> "
+        f"{html_std.escape(OFFICIAL_BUSINESS_ADDRESS)}</p>"
+        f"<p class=\"demo-merchant-line\">Paystack Merchant ID: <strong>{_mid_esc}</strong> · "
+        "Illustrative cohort — Secure Clinical Logic applied.</p>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    _cohort_total = REVIEWER_MOCK_RECOVERABLE_USD * len(REVIEWER_MOCK_AUDIT_IDS)
+    st.markdown(
+        f'<div class="reviewer-recoverable-hero">Recoverable Revenue (demo cohort): '
+        f'<span class="reviewer-usd">${_cohort_total:,.2f}</span>'
+        f'<span class="reviewer-hero-sub">3 audits × ${REVIEWER_MOCK_RECOVERABLE_USD:,.2f} each</span></div>',
+        unsafe_allow_html=True,
+    )
+    _mock_audits = [
+        {
+            "Audit ID": aid,
+            "Clinic": REVIEWER_MOCK_CLINIC,
+            "Status": REVIEWER_MOCK_AUDIT_STATUS,
+            "Recoverable Revenue": f"${REVIEWER_MOCK_RECOVERABLE_USD:,.2f}",
+        }
+        for aid in REVIEWER_MOCK_AUDIT_IDS
+    ]
+    st.markdown(
+        '<p class="reviewer-section-title">Mock audits — Neural Analysis (injected demo data)</p>',
+        unsafe_allow_html=True,
+    )
+    st.dataframe(
+        pd.DataFrame(_mock_audits),
+        use_container_width=True,
+        hide_index=True,
+    )
+    if hasattr(st, "link_button"):
+        st.link_button(
+            "Pay Now",
+            _paystack_release_checkout_url(),
+            type="primary",
+            use_container_width=True,
+            help=f"Opens Paystack Checkout for Merchant ID {PAYSTACK_MERCHANT_ID} (set PAYSTACK_RELEASE_CHECKOUT_URL in secrets).",
+        )
+    else:
+        st.markdown(
+            f'<a href="{html_std.escape(_paystack_release_checkout_url())}" target="_blank" '
+            'rel="noopener noreferrer" class="reviewer-pay-link">Pay Now — Paystack Checkout</a>',
+            unsafe_allow_html=True,
+        )
+
+
+def _render_mandatory_kyc_footer() -> None:
+    """Paystack compliance — mandatory KYC strip on every page (below primary chrome)."""
+    st.markdown(
+        f'<div class="kyc-footer-bar kyc-footer-legal">{_kyc_footer_html_inner()}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def main():
     _ghost_audit_fragment_poll()
     _sync_session_with_profiles_table()
+    _apply_paystack_demo_role_override()
     perms = check_permissions()
     role = perms.role
     _ensure_claims_portal()
+    _demo = _is_paystack_demo_session()
 
     with st.sidebar:
         logo_file = None
@@ -8085,23 +9151,41 @@ def main():
             f"Active session · <code style=\"color:#E0E0E0;\">{user_email}</code></p>",
             unsafe_allow_html=True,
         )
-        st.markdown(
-            '<p style="font-family:\'JetBrains Mono\',monospace;font-size:0.65rem;letter-spacing:0.14em;'
-            'color:#00FF41;text-transform:uppercase;margin:0.2rem 0 0.35rem;line-height:1.35;">'
-            "SENTURION AI SOLUTIONS // NEURAL AUDIT NODE</p>",
-            unsafe_allow_html=True,
-        )
+        if perms.can_clinic_portal:
+            st.markdown(
+                '<p style="font-family:\'JetBrains Mono\',monospace;font-size:0.62rem;letter-spacing:0.08em;'
+                'color:#00FF41;text-transform:none;margin:0.2rem 0 0.35rem;line-height:1.4;">'
+                "Senturion AI: Secure Medical Revenue Recovery Terminal</p>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<p style="font-family:\'JetBrains Mono\',monospace;font-size:0.65rem;letter-spacing:0.14em;'
+                'color:#00FF41;text-transform:uppercase;margin:0.2rem 0 0.35rem;line-height:1.35;">'
+                "SENTURION AI SOLUTIONS // NEURAL AUDIT NODE</p>",
+                unsafe_allow_html=True,
+            )
         st.caption(f"Access tier: **{(role or '…').upper()}**")
-        if perms.can_appeal_engine:
+        if _demo:
+            st.caption("Neural Audit Demo · Reviewer · Paystack merchant preview (Secure Clinical Logic)")
+            st.markdown(
+                '<div class="reviewer-sidebar-executive">'
+                '<p class="rse-head">Executive leadership</p>'
+                '<p class="rse-line"><strong>CEO:</strong> Eduard de Lange</p>'
+                '<p class="rse-line rse-cfo"><strong>CFO:</strong> Monré Wessel Nagel</p>'
+                "</div>",
+                unsafe_allow_html=True,
+            )
+        if perms.can_appeal_engine and not _demo:
             st.toggle("Switch to Client View", key="client_view_mode")
         _cv = bool(st.session_state.get("client_view_mode"))
 
-        if not _cv:
+        if not _demo and not _cv and not perms.can_clinic_portal:
             st.markdown(
                 """<div class="senturion-command-hierarchy">
 <div class="sch-title">Senturion Command Hierarchy</div>
 <div class="sch-level"><span class="sch-tag">[LVL 1]</span> War Room <span class="sch-sub">(Batch Upload)</span></div>
-<div class="sch-level"><span class="sch-tag">[LVL 2]</span> Revenue Vault <span class="sch-sub">(The Ledger)</span></div>
+<div class="sch-level"><span class="sch-tag">[LVL 2]</span> Neural Audit Summary <span class="sch-sub">(Ledger)</span></div>
 <div class="sch-level"><span class="sch-tag">[LVL 3]</span> Statutory Engine <span class="sch-sub">(ERISA / Maryland Law settings)</span></div>
 <div class="sch-level"><span class="sch-tag">[LVL 4]</span> Agent Terminal <span class="sch-sub">(Team management)</span></div>
 </div>""",
@@ -8109,6 +9193,8 @@ def main():
             )
             if perms.can_appeal_engine:
                 _render_neural_activity_sidebar_ghost()
+        elif not _cv and perms.can_clinic_portal:
+            st.caption("**Clinic portal** — uploads & audit reports only (no internal treasury).")
 
         if st.button("Secure Logout", key="logout_btn"):
             try:
@@ -8120,7 +9206,7 @@ def main():
             st.session_state.clear()
             st.rerun()
 
-        if not _cv and HAS_LOTTIE and st_lottie:
+        if not _demo and not _cv and not perms.can_clinic_portal and HAS_LOTTIE and st_lottie:
             lottie_data = _fetch_lottie_json(NEURAL_LOTTIE_URL)
             if lottie_data:
                 st_lottie(
@@ -8131,9 +9217,9 @@ def main():
                 )
 
         st.markdown("---")
-        if perms.is_pending_access:
+        if perms.is_pending_access and not _demo:
             st.caption("**Access pending review** — limited sidebar until an Admin assigns your role.")
-        elif perms.can_appeal_engine and not _cv:
+        elif not _demo and perms.can_appeal_engine and not _cv:
             _tab_ops, _tab_legal, _tab_comm = st.tabs(
                 ["Operations", "Legal Templates", "COMMUNICATIONS"]
             )
@@ -8172,6 +9258,8 @@ def main():
                 _render_legal_templates_sidebar()
             with _tab_comm:
                 _render_communications_sidebar()
+        elif perms.can_clinic_portal and not _cv:
+            st.caption("**Clinic** — use main panel for uploads and reports.")
         elif not _cv:
             st.caption("Stealth client portal — submissions only.")
 
@@ -8187,39 +9275,40 @@ def main():
                 "SENTURION AI SOLUTIONS</div>",
                 unsafe_allow_html=True,
             )
-        if not _cv:
+        if perms.can_financial_analytics and not _cv and not _demo:
             st.markdown("---")
-            st.markdown(
-                '<div class="system-pulse"><span class="pulse-dot"></span> Neural Engine: Active</div>',
-                unsafe_allow_html=True,
-            )
-            if perms.can_appeal_engine and st.session_state.get("appeal_csv_synced"):
+            _render_sidebar_founder_mirror()
+        if not _cv and not perms.can_clinic_portal:
+            st.markdown("---")
+            if not _demo:
                 st.markdown(
-                    '<div class="data-synced">▼ DATA SYNCED</div>',
+                    '<div class="system-pulse"><span class="pulse-dot"></span> Neural Engine: Active</div>',
                     unsafe_allow_html=True,
                 )
+                if perms.can_appeal_engine and st.session_state.get("appeal_csv_synced"):
+                    st.markdown(
+                        '<div class="data-synced">▼ DATA SYNCED</div>',
+                        unsafe_allow_html=True,
+                    )
             st.markdown(
                 '''<div class="founding-partners">
-                <strong>Founding Partners</strong><br/>
-                <span class="partner-name">Monré Nagel</span><br/>
-                <span class="partner-role">CEO & FOUNDER</span>
+                <span class="partner-exec-line ceo-line">CEO: Eduard de Lange</span>
                 <span class="partner-sep"></span>
-                <span class="partner-name">Eduard de Lange</span><br/>
-                <span class="partner-role">CO-FOUNDER & CTO</span>
+                <span class="partner-exec-line cfo-line">CFO: Monré Wessel Nagel</span>
             </div>''',
                 unsafe_allow_html=True,
             )
-            if perms.can_appeal_engine:
+            if not _demo and perms.can_appeal_engine:
                 st.markdown("---")
                 st.markdown(
                     '<p style="font-family:JetBrains Mono,monospace;font-size:0.62rem;letter-spacing:0.2em;'
-                    'color:#E0E0E0;text-transform:uppercase;margin-bottom:0.35rem;">Audit log · History</p>',
+                    'color:#fafafa;text-transform:uppercase;margin-bottom:0.35rem;">Compliance Trail</p>',
                     unsafe_allow_html=True,
                 )
                 _ensure_audit_log()
                 _hist = list(reversed(st.session_state.audit_log_history[-18:]))
                 if not _hist:
-                    st.caption("No enforcement events yet.")
+                    st.caption("System Integrity: Optimal")
                 else:
                     for ent in _hist:
                         if isinstance(ent, dict):
@@ -8228,14 +9317,15 @@ def main():
                             st.caption(f"**{ts}** — {msg}" if ts else msg)
                         else:
                             st.caption(str(ent))
-            if perms.is_admin:
+            if perms.can_financial_analytics and not _demo:
                 st.markdown("---")
-                with st.expander("Admin settings", expanded=False):
+                with st.expander("Partner & treasury settings", expanded=False):
+                    st.caption("**Admin + Agent** — full treasury configuration (partner parity).")
                     st.session_state.setdefault("appeal_output_format", "docx")
                     _cur_fmt = st.session_state.get("appeal_output_format", "docx")
                     _fmt_ix = 0 if _cur_fmt == "docx" else 1
                     _fmt_choice = st.radio(
-                        "Output format",
+                        "Appeal output format",
                         ("DOCX", "PDF"),
                         index=_fmt_ix,
                         horizontal=True,
@@ -8262,40 +9352,25 @@ def main():
                         key="admin_treasury_sol_wallet",
                         placeholder=DEFAULT_TREASURY_SOL_WALLET,
                     )
-                    st.markdown("---")
-                    st.markdown("**Founder equity** (15% pool split)")
-                    st.caption(
-                        "Applies to **Partner dashboard** metrics and **Partner Settlement Log** row splits when status is COLLECTED."
-                    )
-                    st.session_state.setdefault("admin_monre_equity_pct", DEFAULT_MONRE_EQUITY_PCT)
-                    st.session_state.setdefault("admin_eddie_equity_pct", DEFAULT_EDDIE_EQUITY_PCT)
-                    st.number_input(
-                        "Monré Equity %",
-                        min_value=0.0,
-                        max_value=100.0,
-                        step=0.5,
-                        key="admin_monre_equity_pct",
-                    )
-                    st.number_input(
-                        "Eddie Equity %",
-                        min_value=0.0,
-                        max_value=100.0,
-                        step=0.5,
-                        key="admin_eddie_equity_pct",
-                    )
 
     _ensure_clinic_profiles()
     _active_prof = _get_clinic_profile(st.session_state.get("active_clinic_id"))
     clinic_name = (_active_prof.get("name") if _active_prof else None) or DEFAULT_CLINIC_NAME
 
-    if perms.can_appeal_engine and not st.session_state.get("client_view_mode"):
+    if (
+        perms.can_appeal_engine
+        and not st.session_state.get("client_view_mode")
+        and not _is_paystack_demo_session()
+    ):
         if "GEMINI_API_KEY" not in st.secrets:
             st.error("Missing GEMINI_API_KEY in .streamlit/secrets.toml.")
             st.stop()
 
     viewport = st.empty()
     with viewport.container():
-        if perms.is_pending_access:
+        if _is_paystack_demo_session():
+            _render_demo_audit_page()
+        elif perms.is_pending_access:
             _render_pending_access_gate()
         elif st.session_state.get("client_view_mode") and perms.can_appeal_engine:
             _render_client_facing_view(clinic_name or "")
@@ -8303,6 +9378,8 @@ def main():
             _render_admin_war_room(logo_file=logo_file, clinic_name=clinic_name or "")
         elif perms.is_agent and perms.can_appeal_engine:
             _render_agent_console(logo_file=logo_file, clinic_name=clinic_name or "")
+        elif perms.can_clinic_portal:
+            _render_clinic_portal()
         elif perms.can_client_vault:
             _render_client_vault()
         else:
@@ -8310,10 +9387,48 @@ def main():
             if st.button("Retry profile sync", key="retry_profile_sync"):
                 st.rerun()
 
-    st.markdown(
-        '<p class="quantum-footer">© 2026 SENTURION AI SOLUTIONS // ENCRYPTED ACCESS ONLY</p>',
-        unsafe_allow_html=True,
-    )
+    if _is_paystack_demo_session():
+        # Footer lock — fixed copy for Reviewer / Paystack verification (matches compliance pack)
+        st.markdown(
+            """
+<div class="reviewer-footer-lock">
+  <p class="rfl-addr"><strong>1171 Bergsig Street, Pretoria</strong></p>
+  <p class="rfl-mid"><strong>Merchant ID: 1774856</strong></p>
+  <p class="rfl-copy">Senturion AI Solutions · Neural Audit Demo · © 2026</p>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+    elif perms.can_clinic_portal:
+        st.markdown(
+            '<p class="quantum-footer">'
+            "Senturion AI: Secure Medical Revenue Recovery Terminal · © 2026"
+            "</p>",
+            unsafe_allow_html=True,
+        )
+    else:
+        _msa_doc = _signed_msa_doc_id_footer()
+        _db_ok = _supabase_database_online()
+        _db_cls = "db-dot-online" if _db_ok else "db-dot-offline"
+        _db_txt_cls = "footer-db-on" if _db_ok else "footer-db-off"
+        _db_txt = "Database Online" if _db_ok else "Database offline"
+        _mid_esc = html_std.escape(str(PAYSTACK_MERCHANT_ID))
+        st.markdown(
+            f'<div class="quantum-footer">'
+            f"© 2026 SENTURION AI SOLUTIONS // ENCRYPTED ACCESS ONLY"
+            f'<span class="quantum-footer-sub">Merchant ID: <strong>{_mid_esc}</strong>'
+            f'<span class="footer-db-pill" title="Supabase / Senturion Vault connection">'
+            f'<span class="footer-db-dot {_db_cls}"></span>'
+            f'<span class="footer-db-txt {_db_txt_cls}">{html_std.escape(_db_txt)}</span></span> · '
+            f"Status: <strong>{html_std.escape(str(PAYSTACK_MERCHANT_STATUS))}</strong> · "
+            f"Merchant Agreement DocID: <strong>{html_std.escape(str(_msa_doc))}</strong></span>"
+            f'<span class="quantum-footer-addr">{OFFICIAL_BUSINESS_ADDRESS}</span>'
+            f'<span class="quantum-footer-sub quantum-footer-mail">'
+            f'<a href="mailto:{OFFICIAL_CONTACT_EMAIL}">{OFFICIAL_CONTACT_EMAIL}</a></span>'
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+    _render_mandatory_kyc_footer()
 
 
 def _render_appeal_generator(logo_file=None, clinic_name=""):
@@ -8393,6 +9508,9 @@ def _render_appeal_generator(logo_file=None, clinic_name=""):
                 else:
                     with st.spinner("Generating appeal letter..."):
                         try:
+                            if model is None:
+                                st.error("Appeal engine unavailable — add GEMINI_API_KEY to .streamlit/secrets.toml.")
+                                st.stop()
                             statutory = (
                                 _infer_appeal_mode(str((selected_row or {}).get("Reason for Denial", "")))
                                 == "STATUTORY"
