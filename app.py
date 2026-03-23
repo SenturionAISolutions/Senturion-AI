@@ -807,32 +807,7 @@ DEMO_PAYSTACK_EMAIL = "reviews@paystack.com"
 # Emergency local bypass for Paystack merchant review (no Supabase auth). Remove after verification.
 PAYSTACK_REVIEW_BYPASS_PASSWORD = "SenturionVerify2026!"
 PAYSTACK_REVIEWER_BYPASS_USER_ID = "paystack-reviewer-bypass-local"
-# Reviewer demo — Neural Audit Summary: 3 mock claims totaling $14,250
-REVIEWER_MOCK_CLINIC = "Miami Medical Center"
-REVIEWER_MOCK_AUDIT_STATUS = "Neural Analysis Complete"
-REVIEWER_MOCK_CLAIMS_TOTAL_USD = 14250.0
-# Client View pitch — fixed opportunity headline (USD)
-CLIENT_VIEW_OPPORTUNITY_USD = 2775.0  # Client View hero — Recovery Opportunity headline
-REVIEWER_MOCK_CLAIMS_ROWS: list[dict[str, Any]] = [
-    {
-        "Claim ID": "CLM-MIA-2026-001",
-        "Clinic": REVIEWER_MOCK_CLINIC,
-        "Status": REVIEWER_MOCK_AUDIT_STATUS,
-        "Recoverable (USD)": 4750.0,
-    },
-    {
-        "Claim ID": "CLM-MIA-2026-002",
-        "Clinic": REVIEWER_MOCK_CLINIC,
-        "Status": REVIEWER_MOCK_AUDIT_STATUS,
-        "Recoverable (USD)": 4750.0,
-    },
-    {
-        "Claim ID": "CLM-MIA-2026-003",
-        "Clinic": REVIEWER_MOCK_CLINIC,
-        "Status": REVIEWER_MOCK_AUDIT_STATUS,
-        "Recoverable (USD)": 4750.0,
-    },
-]
+# Live audit rows: st.session_state.audit_results (see _rebuild_audit_results) — column "Recoverable" (USD)
 # Paystack hosted checkout for “Pay Release Fee” (set real URL in .streamlit/secrets.toml)
 DEFAULT_PAYSTACK_RELEASE_CHECKOUT_URL = "https://paystack.com/pay/senturion-release-fee"
 # Standard per-claim audit fee — canonical 50/50 net split after Paystack (revenue engine)
@@ -1351,6 +1326,10 @@ if "role" not in st.session_state:
     st.session_state.role = None
 if "revenue_vault" not in st.session_state:
     st.session_state.revenue_vault = []
+if "audit_results" not in st.session_state:
+    st.session_state.audit_results = []
+if "nexus_tab" not in st.session_state:
+    st.session_state.nexus_tab = "operations"
 if "audit_log_history" not in st.session_state:
     st.session_state.audit_log_history = []
 if "client_view_mode" not in st.session_state:
@@ -6921,9 +6900,51 @@ def _sync_vault_from_neural_batch() -> None:
     sig = st.session_state.get("neural_audit_batch_sig")
     if data and sig:
         skip = st.session_state.get("_ghost_skip_full_batch_sync_sig")
-        if skip and skip == sig:
-            return
-        _merge_neural_batch_into_vault(data, sig)
+        if not (skip and skip == sig):
+            _merge_neural_batch_into_vault(data, sig)
+    _rebuild_audit_results()
+
+
+def _rebuild_audit_results() -> None:
+    """Populate st.session_state.audit_results with a **Recoverable** column (USD) from neural batch or vault."""
+    out: list[dict[str, Any]] = []
+    nb = list(st.session_state.get("neural_audit_batch") or [])
+    if nb:
+        for r in nb:
+            if not isinstance(r, dict):
+                continue
+            rec = float(_parse_amount_denied(r.get("Potential Revenue", "0")))
+            out.append(
+                {
+                    "Claim": clean_text(str(r.get("Patient ID") or r.get("Patient Name") or "")) or "—",
+                    "Recoverable": round(rec, 2),
+                }
+            )
+    else:
+        _ensure_revenue_vault()
+        for e in _vault_entries_displayable():
+            rec = float(_vault_amount_for_entry(e))
+            out.append(
+                {
+                    "Claim": clean_text(str(e.get("Patient", ""))) or "—",
+                    "Recoverable": round(rec, 2),
+                }
+            )
+    st.session_state.audit_results = out
+
+
+def _audit_results_total_recoverable_usd() -> float:
+    """Sum of the Recoverable column in audit_results."""
+    _rebuild_audit_results()
+    ar = st.session_state.get("audit_results") or []
+    return float(
+        sum(float(r.get("Recoverable", 0) or 0) for r in ar if isinstance(r, dict))
+    )
+
+
+def _audit_fee_from_recoverable_usd(total: float) -> float:
+    """Dynamic audit fee: 15% of recoverable total (Senturion success-fee alignment)."""
+    return round(max(0.0, float(total)) * (MSA_SUCCESS_FEE_PERCENT / 100.0), 2)
 
 
 def _vault_amount_for_entry(entry: dict) -> float:
@@ -7706,18 +7727,28 @@ section.main div[data-testid="stDownloadButton"] button {
         '<h1 class="hud-title" style="border:none;">Revenue Recovery · Client View</h1>',
         unsafe_allow_html=True,
     )
-    total_fmt = f"{CLIENT_VIEW_OPPORTUNITY_USD:,.2f}"
+    _total_rec = _audit_results_total_recoverable_usd()
+    _ar = st.session_state.get("audit_results") or []
+    if not _ar or _total_rec <= 0:
+        _hero_val = "$0.00 - Pending Neural Audit"
+        _hero_sub = "Run an audit in the War Room to populate recoverable amounts."
+    else:
+        _hero_val = f"${_total_rec:,.2f}"
+        _hero_sub = "Recovery Opportunity · proceed to secure payment"
     st.markdown(
         f"""
 <div class="client-pitch-hero client-v2-hero">
   <div class="client-pitch-label">RECOVERY OPPORTUNITY</div>
-  <p class="client-pitch-value">${total_fmt}</p>
-  <div class="client-pitch-sub">Hero stat · proceed to secure payment</div>
+  <p class="client-pitch-value">{html_std.escape(_hero_val)}</p>
+  <div class="client-pitch-sub">{html_std.escape(_hero_sub)}</div>
 </div>
 """,
         unsafe_allow_html=True,
     )
-    st.caption("Pay Audit Fee below — hosted checkout.")
+    _fee = _audit_fee_from_recoverable_usd(_total_rec)
+    st.caption(
+        f"Audit fee (15% of recoverable): **${_fee:,.2f}** — Paystack hosted checkout below."
+    )
     _render_paystack_audit_fee_cta()
 
 
@@ -9598,6 +9629,295 @@ def _render_agent_console(logo_file, clinic_name: str) -> None:
         _render_financial_analytics()
 
 
+def _inject_nexus_ui_css() -> None:
+    """Nexus shell — hide default Streamlit chrome; glass + #0B0E14 (presentation only)."""
+    st.markdown(
+        """
+<style>
+/* Nexus — full bleed, no default chrome */
+#MainMenu, header[data-testid="stHeader"], footer, [data-testid="stFooter"],
+[data-testid="stToolbar"], [data-testid="stDecoration"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+}
+[data-testid="stSidebar"] {
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    visibility: hidden !important;
+}
+[data-testid="stAppViewContainer"] {
+    background: #0B0E14 !important;
+}
+.stApp {
+    background: #0B0E14 !important;
+}
+section.main {
+    padding-top: 0.5rem !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+section.main div[data-testid="stVerticalBlock"] > div[data-testid="element-container"] {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+.main .block-container {
+    padding-top: 0.75rem !important;
+    padding-left: clamp(0.75rem, 3vw, 2.5rem) !important;
+    padding-right: clamp(0.75rem, 3vw, 2.5rem) !important;
+    padding-bottom: 2rem !important;
+    max-width: 1400px !important;
+    margin: 0 auto !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+.nexus-topnav-shell {
+    background: rgba(255, 255, 255, 0.05) !important;
+    backdrop-filter: blur(14px) !important;
+    -webkit-backdrop-filter: blur(14px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 16px !important;
+    padding: 0.85rem 1.25rem !important;
+    margin-bottom: 1rem !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45) !important;
+}
+.nexus-brand-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.nexus-brand-title {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: #38bdf8 !important;
+    font-size: 0.78rem;
+  }
+.nexus-step-track {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin: 0.5rem 0 1.25rem 0;
+    font-family: 'Inter', sans-serif;
+}
+.nexus-step-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    box-shadow: 0 0 14px rgba(0, 123, 255, 0.55);
+}
+.nexus-step-label {
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    color: #94a3b8 !important;
+    text-transform: uppercase;
+}
+.nexus-vault-mega {
+    text-align: center;
+    padding: 2.5rem 1.5rem;
+    margin: 0.5rem 0 1.25rem 0;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05) !important;
+    backdrop-filter: blur(14px) !important;
+    -webkit-backdrop-filter: blur(14px) !important;
+    border: 1px solid rgba(0, 123, 255, 0.35) !important;
+    box-shadow: 0 0 60px rgba(0, 123, 255, 0.35), inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+.nexus-vault-mega .nv-amt {
+    font-family: 'Inter', sans-serif !important;
+    font-size: clamp(2.75rem, 9vw, 4.5rem) !important;
+    font-weight: 800 !important;
+    color: #007bff !important;
+    text-shadow: 0 0 40px rgba(0, 123, 255, 0.45) !important;
+    line-height: 1.05 !important;
+    margin: 0.5rem 0 0 0 !important;
+}
+.nexus-support-card {
+    background: rgba(255, 255, 255, 0.05) !important;
+    backdrop-filter: blur(14px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 16px !important;
+    padding: 1.5rem !important;
+    max-width: 560px !important;
+    margin: 0 auto !important;
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def _nexus_logo_html() -> str:
+    """Inline logo for top nav (read-only asset)."""
+    p = "logo.png"
+    if not os.path.isfile(p):
+        return ""
+    try:
+        with open(p, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("ascii")
+        return f'<img src="data:image/png;base64,{b64}" alt="Senturion" style="height:40px;width:auto;object-fit:contain;" />'
+    except OSError:
+        return ""
+
+
+def _nexus_step_tracker_html() -> str:
+    return """
+<div class="nexus-step-track">
+  <span class="nexus-step-dot"></span><span class="nexus-step-label">Step 1 · Clinic</span>
+  <span style="color:#94a3b8;font-size:0.62rem;">→</span>
+  <span class="nexus-step-dot"></span><span class="nexus-step-label">Step 2 · Intake</span>
+  <span style="color:#94a3b8;font-size:0.62rem;">→</span>
+  <span class="nexus-step-dot"></span><span class="nexus-step-label">Step 3 · Audit</span>
+</div>
+"""
+
+
+def _render_nexus_top_nav(perms: AppPermissions, *, demo: bool) -> None:
+    """Custom top bar: logo + nav tabs (session state routing). Logout when sidebar hidden."""
+    _lg = _nexus_logo_html()
+    st.markdown(
+        f"""
+<div class="nexus-topnav-shell">
+  <div class="nexus-brand-row">
+    {_lg}
+    <span class="nexus-brand-title">SENTURION · NEXUS</span>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+    _cur = str(st.session_state.get("nexus_tab") or "operations")
+    n1, n2, n3, n4 = st.columns([1.15, 1.15, 1.15, 0.55])
+    with n1:
+        if st.button(
+            "Operations (Admin)",
+            key="nexus_nav_operations",
+            use_container_width=True,
+            type="primary" if _cur == "operations" else "secondary",
+        ):
+            st.session_state.nexus_tab = "operations"
+            st.session_state.client_view_mode = False
+            st.rerun()
+    with n2:
+        if st.button(
+            "My Revenue (Client)",
+            key="nexus_nav_client",
+            use_container_width=True,
+            type="primary" if _cur == "client_vault" else "secondary",
+        ):
+            st.session_state.nexus_tab = "client_vault"
+            st.session_state.client_view_mode = True
+            st.rerun()
+    with n3:
+        if st.button(
+            "Support Center",
+            key="nexus_nav_support",
+            use_container_width=True,
+            type="primary" if _cur == "support" else "secondary",
+        ):
+            st.session_state.nexus_tab = "support"
+            st.session_state.client_view_mode = False
+            st.rerun()
+    _logout_disabled = bool(demo or perms.is_reviewer)
+    with n4:
+        if st.button("Logout", key="nexus_nav_logout", use_container_width=True, disabled=_logout_disabled):
+            try:
+                get_supabase().auth.sign_out()
+            except Exception:
+                pass
+            st.cache_data.clear()
+            st.session_state.clear()
+            st.rerun()
+
+
+def _render_nexus_client_vault(clinic_name: str) -> None:
+    """Client Vault: mega hero + Paystack + disabled crypto (uses existing fee helpers)."""
+    _ = clinic_name
+    st.markdown(
+        """
+<style>
+section.main [data-testid="stButton"] button[kind="primary"] {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+    font-weight: 700 !important;
+    border-radius: 12px !important;
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<h1 class="hud-title" style="border:none;">My Revenue · Client Vault</h1>',
+        unsafe_allow_html=True,
+    )
+    _total_rec = _audit_results_total_recoverable_usd()
+    _ar = st.session_state.get("audit_results") or []
+    if not _ar or _total_rec <= 0:
+        _hero_val = "$0.00 - Pending Neural Audit"
+        _hero_sub = "Run an audit in Operations to populate recoverable amounts."
+    else:
+        _hero_val = f"${_total_rec:,.2f}"
+        _hero_sub = "Recovery Opportunity"
+    st.markdown(
+        f"""
+<div class="nexus-vault-mega">
+  <div style="font-size:0.72rem;letter-spacing:0.18em;color:#94a3b8;text-transform:uppercase;">Recovery Opportunity</div>
+  <p class="nv-amt">{html_std.escape(_hero_val)}</p>
+  <div style="font-size:0.72rem;color:#D4AF37;letter-spacing:0.08em;">{html_std.escape(_hero_sub)}</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+    _fee = _audit_fee_from_recoverable_usd(_total_rec)
+    st.caption(f"Audit fee (15% of recoverable): **${_fee:,.2f}**")
+    pay_col, crypto_col = st.columns([1.2, 1.0])
+    with pay_col:
+        _render_paystack_audit_fee_cta()
+    with crypto_col:
+        st.markdown("<br/>", unsafe_allow_html=True)
+        st.button(
+            "Pay with Crypto (Solana) - Coming Soon",
+            key="nexus_disabled_crypto_sol",
+            disabled=True,
+            use_container_width=True,
+        )
+
+
+def _render_nexus_support_view() -> None:
+    """Support Center — contact form + HIPAA / merchant line (display only)."""
+    st.markdown(
+        '<h1 class="hud-title" style="border:none;">Support Center</h1>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f'<p style="color:#94a3b8;font-size:0.85rem;margin-bottom:1rem;">'
+        f"HIPAA Guard: Active | Merchant ID: <strong>{html_std.escape(str(PAYSTACK_MERCHANT_ID))}</strong></p>",
+        unsafe_allow_html=True,
+    )
+    st.markdown('<div class="nexus-support-card">', unsafe_allow_html=True)
+    with st.form("nexus_contact_leadership_form", clear_on_submit=False):
+        st.markdown("### Contact Leadership")
+        st.caption("Send a message to Senturion executive leadership (session-only).")
+        _nm = st.text_input("Name", key="nexus_support_name")
+        _em = st.text_input("Email", key="nexus_support_email")
+        _msg = st.text_area("Message", key="nexus_support_message", height=120)
+        _sub = st.form_submit_button("Submit", type="primary", use_container_width=True)
+    if _sub:
+        st.success(
+            "Thank you — your message has been recorded for this session. "
+            "For production, connect this form to your CRM or email relay."
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def _render_admin_war_room(logo_file, clinic_name: str) -> None:
     if "active_module" not in st.session_state:
         st.session_state.active_module = "SNIPER"
@@ -9865,7 +10185,19 @@ def _paystack_checkout_fallback_url() -> str:
 
 
 def _render_paystack_audit_fee_cta() -> None:
-    """Paystack Inline overlay (PaystackPop) + HTML fallback link. Amount: USD $2,625."""
+    """Paystack Inline — amount = 15% of sum(Recoverable) in st.session_state.audit_results."""
+    _rec_total = _audit_results_total_recoverable_usd()
+    _fee_usd = _audit_fee_from_recoverable_usd(_rec_total)
+    _amount_cents = int(round(max(0.0, _fee_usd) * 100.0))
+    _fee_lbl = f"{_fee_usd:,.2f}"
+
+    if _amount_cents < 1:
+        st.info(
+            "**Pending Neural Audit** — recoverable total is $0.00. Run an audit in the War Room; "
+            "the Pay Audit Fee (15% of recoverable) will appear here."
+        )
+        return
+
     pk = _get_paystack_public_key()
     _em = (
         (st.session_state.get("email") or "").strip()
@@ -9873,8 +10205,6 @@ def _render_paystack_audit_fee_cta() -> None:
     )
     _em_js = json.dumps(_em)
     pk_js = json.dumps(pk)
-    # USD: amount in subunits (cents)
-    _amount_cents = int(round(float(AUDIT_FEE_USD_STANDARD) * 100.0))
     _ref = f"senturion_audit_{uuid.uuid4().hex[:12]}"
     _fallback = _paystack_checkout_fallback_url()
     _fallback_esc = html_std.escape(_fallback) if _fallback else ""
@@ -9924,9 +10254,9 @@ def _render_paystack_audit_fee_cta() -> None:
   }}
 </style>
 <div style="text-align:center;padding:0.35rem 0 0.5rem;font-family:'JetBrains Mono',ui-monospace,monospace;">
-  <button type="button" id="senturion-audit-fee-btn">Pay Audit Fee</button>
+  <button type="button" id="senturion-audit-fee-btn">Pay Audit Fee (${_fee_lbl})</button>
   <p style="color:#94a3b8;font-size:0.62rem;margin:0.55rem 0 0;letter-spacing:0.04em;">
-    Opens Paystack secure overlay (Inline)</p>
+    15% of recoverable · Opens Paystack secure overlay (Inline)</p>
   <a id="senturion-paystack-fallback" class="senturion-pay-fallback-link" href="{_fallback_esc}" target="_blank" rel="noopener noreferrer">Fallback: open checkout</a>
 </div>
 <script>
@@ -10003,7 +10333,7 @@ def _render_paystack_audit_fee_cta() -> None:
   letter-spacing: 0.05em;
 }}
 </style>
-<a href="{html_std.escape(fb)}" target="_blank" rel="noopener noreferrer" class="senturion-blue-pay-fallback">Pay $2,625 Audit Fee — direct checkout</a>
+<a href="{html_std.escape(fb)}" target="_blank" rel="noopener noreferrer" class="senturion-blue-pay-fallback">Pay ${_fee_usd:,.2f} Audit Fee — direct checkout</a>
 """,
                 unsafe_allow_html=True,
             )
@@ -10043,24 +10373,34 @@ def _render_demo_audit_page() -> None:
         "</div>",
         unsafe_allow_html=True,
     )
-    _cohort_total = REVIEWER_MOCK_CLAIMS_TOTAL_USD
+    _cohort_total = _audit_results_total_recoverable_usd()
+    _fee_line = _audit_fee_from_recoverable_usd(_cohort_total)
+    _ar = st.session_state.get("audit_results") or []
+    _sub = (
+        "Pending Neural Audit — run War Room audit to populate rows"
+        if not _ar or _cohort_total <= 0
+        else f"{len(_ar)} line(s) · Recoverable total"
+    )
     st.markdown(
-        f'<div class="reviewer-recoverable-hero">Recoverable Revenue (demo cohort): '
+        f'<div class="reviewer-recoverable-hero">Recoverable Revenue (live): '
         f'<span class="reviewer-usd">${_cohort_total:,.2f}</span>'
-        f'<span class="reviewer-hero-sub">3 mock claims · Neural Analysis Complete</span></div>',
+        f'<span class="reviewer-hero-sub">{html_std.escape(_sub)}</span></div>',
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<p class="reviewer-section-title">Neural Audit Summary — mock claims (injected)</p>',
+        '<p class="reviewer-section-title">Neural Audit Summary — audit_results (Recoverable)</p>',
         unsafe_allow_html=True,
     )
-    st.dataframe(
-        pd.DataFrame(REVIEWER_MOCK_CLAIMS_ROWS),
-        use_container_width=True,
-        hide_index=True,
-    )
+    if _ar:
+        st.dataframe(
+            pd.DataFrame(_ar),
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("No **audit_results** yet — complete a neural audit to see Claim / Recoverable rows.")
     st.caption(
-        f"Standard audit fee: **${AUDIT_FEE_USD_STANDARD:,.2f}** — opens Paystack hosted checkout in a dedicated window."
+        f"Audit fee (15% of recoverable): **${_fee_line:,.2f}** — opens Paystack hosted checkout in a dedicated window."
     )
     _render_paystack_audit_fee_cta()
 
@@ -10085,6 +10425,13 @@ def main():
     if perms.is_reviewer or _demo:
         _inject_senturion_reviewer_theme_lock_css()
     _inject_senturion_v2_global_css()
+    if (
+        perms.can_appeal_engine
+        and not perms.can_clinic_portal
+        and not _demo
+        and not perms.is_pending_access
+    ):
+        _inject_nexus_ui_css()
 
     with st.sidebar:
         logo_file = None
@@ -10306,6 +10653,10 @@ def main():
     _active_prof = _get_clinic_profile(st.session_state.get("active_clinic_id"))
     clinic_name = (_active_prof.get("name") if _active_prof else None) or DEFAULT_CLINIC_NAME
 
+    if perms.can_appeal_engine and not perms.can_clinic_portal:
+        st.session_state.setdefault("nexus_tab", "operations")
+        st.session_state.client_view_mode = st.session_state.nexus_tab == "client_vault"
+
     if (
         perms.can_appeal_engine
         and not st.session_state.get("client_view_mode")
@@ -10321,12 +10672,19 @@ def main():
             _render_demo_audit_page()
         elif perms.is_pending_access:
             _render_pending_access_gate()
-        elif st.session_state.get("client_view_mode") and perms.can_appeal_engine:
-            _render_client_facing_view(clinic_name or "")
-        elif perms.can_admin_war_room:
-            _render_admin_war_room(logo_file=logo_file, clinic_name=clinic_name or "")
-        elif perms.is_agent and perms.can_appeal_engine:
-            _render_agent_console(logo_file=logo_file, clinic_name=clinic_name or "")
+        elif perms.can_appeal_engine and not perms.can_clinic_portal:
+            _render_nexus_top_nav(perms, demo=_demo)
+            _nt = str(st.session_state.get("nexus_tab") or "operations")
+            if _nt == "operations":
+                st.markdown(_nexus_step_tracker_html(), unsafe_allow_html=True)
+                if perms.can_admin_war_room:
+                    _render_admin_war_room(logo_file=logo_file, clinic_name=clinic_name or "")
+                else:
+                    _render_agent_console(logo_file=logo_file, clinic_name=clinic_name or "")
+            elif _nt == "client_vault":
+                _render_nexus_client_vault(clinic_name or "")
+            else:
+                _render_nexus_support_view()
         elif perms.can_clinic_portal:
             _render_clinic_portal()
         elif perms.can_client_vault:
