@@ -261,6 +261,27 @@ iframe {
 [data-testid="stSidebar"] { background-color: #0B0E14 !important; border-right: 1px solid rgba(255, 255, 255, 0.1) !important; }
 [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label, [data-testid="stSidebar"] div { color: #e0e0e0 !important; }
 [data-testid="stSidebarCollapseButton"] { display: none !important; }
+/* GLOBAL BULLETPROOF BUTTONS */
+div[data-testid="stButton"] > button,
+div[data-testid="stDownloadButton"] > button,
+div[data-testid="stFileUploader"] button {
+    background-color: #007bff !important;
+    color: #ffffff !important;
+    border: 1px solid #0056b3 !important;
+    border-radius: 8px !important;
+    font-weight: bold !important;
+    letter-spacing: 1px !important;
+    text-transform: uppercase !important;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3) !important;
+}
+/* BUTTON HOVER STATE */
+div[data-testid="stButton"] > button:hover,
+div[data-testid="stDownloadButton"] > button:hover,
+div[data-testid="stFileUploader"] button:hover {
+    background-color: #0056b3 !important;
+    color: #ffffff !important;
+    border-color: #004085 !important;
+}
 </style>
 """,
         unsafe_allow_html=True,
