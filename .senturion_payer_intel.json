@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "profiles": {
+    "BCBS": {
+      "ERISA \u00a7 503": {
+        "wins": 18,
+        "n": 24
+      },
+      "29 C.F.R. \u00a7 2560.503-1": {
+        "wins": 5,
+        "n": 12
+      }
+    },
+    "Aetna": {
+      "ERISA \u00a7 503": {
+        "wins": 14,
+        "n": 20
+      },
+      "PHS Act \u00a7 2719 (ACA)": {
+        "wins": 3,
+        "n": 8
+      },
+      "MD Code \u00a7 15-1005": {
+        "wins": 0,
+        "n": 1
+      }
+    },
+    "Marriott": {
+      "ERISA \u00a7 503": {
+        "wins": 11,
+        "n": 14
+      },
+      "ERISA \u00a7 404": {
+        "wins": 4,
+        "n": 9
+      }
+    },
+    "UnitedHealthcare": {
+      "ERISA \u00a7 503": {
+        "wins": 16,
+        "n": 26
+      }
+    },
+    "Cigna": {
+      "ERISA \u00a7 503": {
+        "wins": 9,
+        "n": 16
+      }
+    },
+    "Humana": {
+      "ERISA \u00a7 503": {
+        "wins": 7,
+        "n": 14
+      }
+    }
+  }
+}
