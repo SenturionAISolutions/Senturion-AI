@@ -163,6 +163,329 @@ def _inject_stealth_ui_deep_clean_css() -> None:
         color: #e2e8f0 !important;
         border: 1px solid #334155 !important;
     }
+
+    /* --- Widget focus / overlay strip (no white halos on inputs & buttons) --- */
+    [data-testid="stTextInput"] input,
+    [data-testid="stNumberInput"] input,
+    [data-testid="stTextArea"] textarea,
+    [data-testid="stDateInput"] input,
+    [data-testid="stTimeInput"] input {
+        background-color: #0f172a !important;
+        color: #e2e8f0 !important;
+        border: 1px solid #334155 !important;
+        box-shadow: none !important;
+        -webkit-box-shadow: none !important;
+    }
+    [data-testid="stTextInput"] input:focus,
+    [data-testid="stTextInput"] input:focus-visible,
+    [data-testid="stNumberInput"] input:focus,
+    [data-testid="stTextArea"] textarea:focus,
+    [data-testid="stTextArea"] textarea:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+        -webkit-box-shadow: none !important;
+        border-color: #475569 !important;
+        background-color: #1e293b !important;
+    }
+    [data-baseweb="input"] input,
+    [data-baseweb="textarea"] textarea {
+        background-color: #0f172a !important;
+        color: #e2e8f0 !important;
+        border-color: #334155 !important;
+        box-shadow: none !important;
+    }
+    [data-baseweb="input"]:focus-within,
+    [data-baseweb="textarea"]:focus-within {
+        box-shadow: none !important;
+        -webkit-box-shadow: none !important;
+        border-color: #475569 !important;
+        background-color: #1e293b !important;
+    }
+    /* Select / multiselect / checkbox / radio — kill glow */
+    [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+    [data-testid="stMultiSelect"] [data-baseweb="select"] > div {
+        background-color: #0f172a !important;
+        border-color: #334155 !important;
+        box-shadow: none !important;
+    }
+    [data-testid="stSelectbox"]:focus-within [data-baseweb="select"],
+    [data-testid="stMultiSelect"]:focus-within [data-baseweb="select"] {
+        box-shadow: none !important;
+        border-color: #475569 !important;
+    }
+    [data-testid="stCheckbox"] label,
+    [data-testid="stRadio"] label {
+        color: #e2e8f0 !important;
+    }
+    /* Primary / secondary buttons — default chrome */
+    [data-testid="stButton"] button {
+        box-shadow: none !important;
+        -webkit-box-shadow: none !important;
+        filter: none !important;
+    }
+    [data-testid="stButton"] button:focus,
+    [data-testid="stButton"] button:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+        -webkit-box-shadow: none !important;
+    }
+    /* Link-as-button */
+    [data-testid="stLinkButton"] a,
+    [data-testid="stLinkButton"] button {
+        box-shadow: none !important;
+        -webkit-box-shadow: none !important;
+    }
+    [data-testid="stLinkButton"] a:focus,
+    [data-testid="stLinkButton"] a:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+    /* File uploader */
+    [data-testid="stFileUploader"] section,
+    [data-testid="stFileUploader"] [data-testid="stFileDropzone"] {
+        background: #0f172a !important;
+        border-color: #334155 !important;
+        box-shadow: none !important;
+    }
+    /* Tabs */
+    [data-baseweb="tab-list"] button {
+        box-shadow: none !important;
+        color: #cbd5e1 !important;
+    }
+    [data-baseweb="tab"]:focus,
+    [data-baseweb="tab"]:focus-visible {
+        box-shadow: none !important;
+        outline: none !important;
+    }
+    /* Slider */
+    [data-testid="stSlider"] [role="slider"]:focus {
+        box-shadow: none !important;
+        outline: 2px solid #475569 !important;
+    }
+    /* Toggle */
+    [data-testid="stToggle"] [data-baseweb="switch"] {
+        box-shadow: none !important;
+    }
+    [data-testid="stToggle"] [data-baseweb="switch"]:focus-within {
+        box-shadow: none !important;
+        outline: none !important;
+    }
+    [data-testid="stDownloadButton"] button {
+        box-shadow: none !important;
+    }
+    [data-testid="stDownloadButton"] button:focus,
+    [data-testid="stDownloadButton"] button:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+        border-color: #475569 !important;
+    }
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def _inject_nuclear_white_overlay_kill_css() -> None:
+    """Aggressive override: kill white glare layers (.st-bb / .st-at / BaseWeb inputs)."""
+    st.markdown(
+        """
+<style id="senturion-nuclear-overlay-kill">
+    /* Shell: transparent blocks + white copy (removes phantom light panels) */
+    [data-testid="stVerticalBlock"] > div,
+    [data-testid="element-container"] {
+        background-color: rgba(0, 0, 0, 0) !important;
+        color: #ffffff !important;
+    }
+    [data-testid="stSidebar"] {
+        background-color: rgba(0, 0, 0, 0) !important;
+        color: #ffffff !important;
+    }
+    .main .block-container,
+    section.main .block-container {
+        background-color: rgba(0, 0, 0, 0) !important;
+        color: #ffffff !important;
+    }
+    [data-testid="stButton"] button {
+        background-color: rgba(0, 0, 0, 0) !important;
+        color: #ffffff !important;
+    }
+    /* Streamlit internal glare buckets (hashed classes — may vary by version) */
+    .st-bb, .st-at {
+        background-color: #0E1117 !important;
+        color: #fafafa !important;
+        box-shadow: none !important;
+        -webkit-box-shadow: none !important;
+        border: 1px solid #262730 !important;
+    }
+    .st-bb:hover, .st-at:hover,
+    .st-bb:focus, .st-at:focus,
+    .st-bb:focus-within, .st-at:focus-within {
+        background-color: #0E1117 !important;
+        box-shadow: none !important;
+        -webkit-box-shadow: none !important;
+        border-color: #31333F !important;
+    }
+    /* BaseWeb input chrome — Deep Dark, no white hover ring */
+    div[data-baseweb="input"],
+    div[data-baseweb="input"] > div {
+        background-color: #0E1117 !important;
+        box-shadow: none !important;
+        -webkit-box-shadow: none !important;
+        border-color: #31333F !important;
+    }
+    div[data-baseweb="input"]:hover,
+    div[data-baseweb="input"]:focus,
+    div[data-baseweb="input"]:focus-within {
+        background-color: #0E1117 !important;
+        box-shadow: none !important;
+        -webkit-box-shadow: none !important;
+        border-color: #3d4450 !important;
+    }
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def _inject_senturion_reviewer_theme_lock_css() -> None:
+    """Senturion Dark — zero white bleed for Reviewer sessions (inputs, main, sidebar, CTAs)."""
+    st.markdown(
+        """
+<style id="senturion-reviewer-theme-lock">
+    /* App shell — locked slate / onyx */
+    .stApp, [data-testid="stAppViewContainer"] {
+        background: #0a0f1a !important;
+        color: #e2e8f0 !important;
+    }
+    section.main, section.main > div {
+        background: transparent !important;
+    }
+    .main .block-container {
+        background: #1e293b !important;
+        border-color: #334155 !important;
+        box-shadow: none !important;
+    }
+    [data-testid="stHeader"], [data-testid="stToolbar"] {
+        background: #0a0f1a !important;
+        border-color: #334155 !important;
+    }
+    [data-testid="stSidebar"] {
+        background: #070b12 !important;
+        border-right-color: #334155 !important;
+    }
+    [data-testid="stSidebar"] .block-container {
+        background: #111827 !important;
+        border-color: #334155 !important;
+        box-shadow: none !important;
+    }
+    /* Primary link buttons (e.g. Paystack) in main */
+    [data-testid="stLinkButton"] a[kind="primary"],
+    [data-testid="stLinkButton"] button[kind="primary"] {
+        background: #0369a1 !important;
+        color: #f0f9ff !important;
+        border: 1px solid #0ea5e9 !important;
+        box-shadow: none !important;
+    }
+    [data-testid="stLinkButton"] a[kind="primary"]:focus,
+    [data-testid="stLinkButton"] a[kind="primary"]:focus-visible {
+        outline: none !important;
+        border: 1px solid #ffffff !important;
+        color: #fef3c7 !important;
+        box-shadow: none !important;
+    }
+    /* Dataframe / metrics — no white cards */
+    div[data-testid="stDataFrame"], [data-testid="stMetricContainer"] {
+        background: #0f172a !important;
+        border-color: #334155 !important;
+        box-shadow: none !important;
+    }
+    /* Expander */
+    [data-testid="stExpander"] details {
+        background: #111827 !important;
+        border-color: #334155 !important;
+    }
+    /* Spinner */
+    [data-testid="stSpinner"] {
+        color: #64748b !important;
+    }
+    /* Reviewer demo: disable widgets in main — only Paystack iframe stays clickable */
+    section[data-testid="stMain"] [data-testid="stDataFrame"],
+    section.main [data-testid="stDataFrame"],
+    section[data-testid="stMain"] [data-testid="stButton"],
+    section.main [data-testid="stButton"],
+    section[data-testid="stMain"] [data-testid="stTextInput"],
+    section.main [data-testid="stTextInput"],
+    section[data-testid="stMain"] [data-testid="stNumberInput"],
+    section.main [data-testid="stNumberInput"],
+    section[data-testid="stMain"] [data-testid="stTextArea"],
+    section.main [data-testid="stTextArea"],
+    section[data-testid="stMain"] [data-testid="stSelectbox"],
+    section.main [data-testid="stSelectbox"],
+    section[data-testid="stMain"] [data-testid="stMultiSelect"],
+    section.main [data-testid="stMultiSelect"],
+    section[data-testid="stMain"] [data-testid="stFileUploader"],
+    section.main [data-testid="stFileUploader"],
+    section[data-testid="stMain"] [data-testid="stCheckbox"],
+    section.main [data-testid="stCheckbox"],
+    section[data-testid="stMain"] [data-testid="stRadio"],
+    section.main [data-testid="stRadio"],
+    section[data-testid="stMain"] [data-testid="stLinkButton"],
+    section.main [data-testid="stLinkButton"],
+    section[data-testid="stMain"] [data-testid="stDownloadButton"],
+    section.main [data-testid="stDownloadButton"],
+    section[data-testid="stMain"] [data-testid="stSlider"],
+    section.main [data-testid="stSlider"],
+    section[data-testid="stMain"] [data-testid="stToggle"],
+    section.main [data-testid="stToggle"] {
+        pointer-events: none !important;
+        user-select: none !important;
+        opacity: 0.72 !important;
+        filter: grayscale(0.15);
+    }
+    section[data-testid="stMain"] iframe,
+    section.main iframe {
+        pointer-events: auto !important;
+        opacity: 1 !important;
+        filter: none !important;
+    }
+    /* Secure Logout — dark, thin white border, no white hover/focus bloom */
+    [data-testid="stSidebar"] [data-testid="stButton"] button {
+        width: 100% !important;
+        min-height: 2.5rem !important;
+        margin-top: 0.25rem !important;
+        background: #0a0a0a !important;
+        background-image: none !important;
+        color: #e2e8f0 !important;
+        border: 1px solid rgba(255, 255, 255, 0.85) !important;
+        box-shadow: none !important;
+        -webkit-box-shadow: none !important;
+        filter: none !important;
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        letter-spacing: 0.06em !important;
+        text-transform: uppercase !important;
+        font-size: 0.72rem !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stButton"] button:hover {
+        background: #111111 !important;
+        color: #e2e8f0 !important;
+        border: 1px solid rgba(255, 255, 255, 0.9) !important;
+        box-shadow: none !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stButton"] button:focus,
+    [data-testid="stSidebar"] [data-testid="stButton"] button:focus-visible {
+        outline: none !important;
+        background: #0a0a0a !important;
+        color: #e2e8f0 !important;
+        border: 1px solid rgba(255, 255, 255, 0.95) !important;
+        box-shadow: none !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stButton"] button:disabled {
+        opacity: 0.5 !important;
+        cursor: not-allowed !important;
+        pointer-events: none !important;
+        border: 1px solid rgba(255, 255, 255, 0.35) !important;
+        background: #050505 !important;
+    }
 </style>
 """,
         unsafe_allow_html=True,
@@ -1166,6 +1489,7 @@ def render_login_screen() -> None:
 
 # Gatekeeper: block unauthenticated access (Supabase user or emergency Reviewer bypass)
 _inject_stealth_ui_deep_clean_css()
+_inject_nuclear_white_overlay_kill_css()
 if st.session_state.user is None and not st.session_state.get("logged_in"):
     render_login_screen()
     st.stop()
@@ -2193,11 +2517,16 @@ st.markdown("""
         font-family: 'JetBrains Mono', ui-monospace, monospace !important;
         font-size: 0.72rem !important;
         line-height: 1.45;
-        color: #f1f5f9 !important;
         margin: 0.2rem 0 !important;
+        font-weight: 600 !important;
+    }
+    .reviewer-sidebar-executive .rse-ceo {
+        color: #38bdf8 !important;
+        text-shadow: 0 0 18px rgba(56, 189, 248, 0.55), 0 0 32px rgba(56, 189, 248, 0.25) !important;
     }
     .reviewer-sidebar-executive .rse-cfo {
-        color: #38bdf8 !important;
+        color: #f59e0b !important;
+        text-shadow: 0 0 18px rgba(245, 158, 11, 0.5), 0 0 28px rgba(245, 158, 11, 0.22) !important;
     }
     .reviewer-footer-lock {
         margin-top: 1.25rem;
@@ -2249,8 +2578,16 @@ st.markdown("""
         font-family: 'JetBrains Mono', ui-monospace, monospace !important;
         font-size: 0.92rem !important;
         letter-spacing: 0.06em !important;
-        color: #f1f5f9 !important;
         margin-bottom: 0.45rem !important;
+        font-weight: 600 !important;
+    }
+    .neural-audit-demo-executive .demo-exec-line.ceo-exec {
+        color: #38bdf8 !important;
+        text-shadow: 0 0 20px rgba(56, 189, 248, 0.55), 0 0 40px rgba(56, 189, 248, 0.2) !important;
+    }
+    .neural-audit-demo-executive .demo-exec-line.cfo-exec {
+        color: #f59e0b !important;
+        text-shadow: 0 0 20px rgba(245, 158, 11, 0.5), 0 0 36px rgba(245, 158, 11, 0.22) !important;
     }
     .neural-audit-demo-executive .demo-address-line {
         font-size: 0.82rem !important;
@@ -9161,16 +9498,40 @@ def _render_paystack_audit_fee_cta() -> None:
     _u = json.dumps(_url)
     components.html(
         f"""
+<style>
+  #senturion-audit-fee-btn {{
+    width: 100%;
+    background: linear-gradient(180deg, #0ea5e9 0%, #0369a1 100%);
+    color: #0f172a;
+    font-weight: 700;
+    padding: 0.75rem 1rem;
+    border: 1px solid #38bdf8;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    letter-spacing: 0.06em;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    box-shadow: none !important;
+  }}
+  #senturion-audit-fee-btn:hover {{ border-color: #7dd3fc !important; color: #020617 !important; background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%) !important; box-shadow: none !important; }}
+  #senturion-audit-fee-btn:focus,
+  #senturion-audit-fee-btn:focus-visible {{
+    outline: none !important;
+    border: 1px solid #ffffff !important;
+    color: #d4af37 !important;
+    background: #0f172a !important;
+    box-shadow: none !important;
+  }}
+</style>
 <div style="text-align:center;padding:0.35rem 0 0.6rem;font-family:'JetBrains Mono',ui-monospace,monospace;">
-  <button type="button" id="senturion-audit-fee-btn"
-    style="width:100%;background:#0ea5e9;color:#0f172a;font-weight:700;padding:0.75rem 1rem;border:none;border-radius:4px;cursor:pointer;font-size:0.95rem;letter-spacing:0.06em;"
+  <button type="button" id="senturion-audit-fee-btn" class="senturion-pay-now-cta"
     onclick="window.open({_u}, 'paystack_checkout', 'width=520,height=720,scrollbars=yes')">
-    Pay $2,625 Audit Fee
+    Pay Audit Fee · $2,625
   </button>
-  <p style="color:#94a3b8;font-size:0.65rem;margin:0.6rem 0 0;letter-spacing:0.04em;">Hosted Paystack checkout</p>
+  <p style="color:#94a3b8;font-size:0.65rem;margin:0.6rem 0 0;letter-spacing:0.04em;">Pay Audit Fee — opens hosted Paystack checkout</p>
 </div>
 """,
-        height=130,
+        height=150,
     )
 
 
@@ -9188,8 +9549,8 @@ def _render_demo_audit_page() -> None:
     )
     st.markdown(
         '<div class="senturion-dark-panel reviewer-roles-strip neural-audit-demo-executive">'
-        "<p class=\"demo-exec-line\"><strong>CEO:</strong> Eduard de Lange</p>"
-        "<p class=\"demo-exec-line\"><strong>CFO:</strong> Monré Wessel Nagel</p>"
+        "<p class=\"demo-exec-line ceo-exec\"><strong>CEO:</strong> Eduard de Lange</p>"
+        "<p class=\"demo-exec-line cfo-exec\"><strong>CFO:</strong> Monré Wessel Nagel</p>"
         f"<p class=\"demo-address-line\"><strong>Registered address:</strong> "
         f"{html_std.escape(OFFICIAL_BUSINESS_ADDRESS)}</p>"
         f"<p class=\"demo-merchant-line\">Paystack Merchant ID: <strong>{_mid_esc}</strong> · "
@@ -9236,6 +9597,8 @@ def main():
     role = perms.role
     _ensure_claims_portal()
     _demo = _is_paystack_demo_session()
+    if perms.is_reviewer or _demo:
+        _inject_senturion_reviewer_theme_lock_css()
 
     with st.sidebar:
         logo_file = None
@@ -9270,7 +9633,7 @@ def main():
             st.markdown(
                 '<div class="reviewer-sidebar-executive">'
                 '<p class="rse-head">Executive leadership</p>'
-                '<p class="rse-line"><strong>CEO:</strong> Eduard de Lange</p>'
+                '<p class="rse-line rse-ceo"><strong>CEO:</strong> Eduard de Lange</p>'
                 '<p class="rse-line rse-cfo"><strong>CFO:</strong> Monré Wessel Nagel</p>'
                 "</div>",
                 unsafe_allow_html=True,
@@ -9295,7 +9658,10 @@ def main():
         elif not _cv and perms.can_clinic_portal:
             st.caption("**Clinic portal** — uploads & audit reports only (no internal treasury).")
 
-        if st.button("Secure Logout", key="logout_btn"):
+        _logout_disabled = bool(_demo or perms.is_reviewer)
+        if _logout_disabled:
+            st.caption("Reviewer demo — **Pay Audit Fee** is the only active control.")
+        if st.button("Secure Logout", key="logout_btn", disabled=_logout_disabled):
             try:
                 get_supabase().auth.sign_out()
             except Exception:
