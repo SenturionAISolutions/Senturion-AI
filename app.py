@@ -258,6 +258,9 @@ iframe {
 #senturion-audit-fee-btn {
     animation: senturion-pay-audit-glow 2.4s ease-in-out infinite !important;
 }
+[data-testid="stSidebar"] { background-color: #0B0E14 !important; border-right: 1px solid rgba(255, 255, 255, 0.1) !important; }
+[data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label, [data-testid="stSidebar"] div { color: #e0e0e0 !important; }
+[data-testid="stSidebarCollapseButton"] { display: none !important; }
 </style>
 """,
         unsafe_allow_html=True,
@@ -1177,11 +1180,12 @@ def _play_success_beep() -> None:
         pass
 
 
-# Page config - must be first Streamlit command
+# Page config — must be the first Streamlit command executed on each run (imports OK above).
 st.set_page_config(
     page_title="CLAIM SNIPER // NEURAL AUDIT",
     page_icon="🛡️",
     layout="wide",
+    # EMERGENCY CONFIG OVERRIDE: force native sidebar open (do not remove)
     initial_sidebar_state="expanded",
 )
 
