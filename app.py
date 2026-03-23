@@ -700,8 +700,6 @@ DEMO_PAYSTACK_EMAIL = "reviews@paystack.com"
 PAYSTACK_REVIEW_BYPASS_PASSWORD = "SenturionVerify2026!"
 PAYSTACK_REVIEWER_BYPASS_USER_ID = "paystack-reviewer-bypass-local"
 # Live audit rows: st.session_state.audit_results (see _rebuild_audit_results) — column "Recoverable" (USD)
-# Client View hero — fixed Recovery Opportunity headline (USD) for display
-CLIENT_VIEW_OPPORTUNITY_USD = 2775.0
 # Paystack hosted checkout for “Pay Release Fee” (set real URL in .streamlit/secrets.toml)
 DEFAULT_PAYSTACK_RELEASE_CHECKOUT_URL = "https://paystack.com/pay/senturion-release-fee"
 # Standard per-claim audit fee — canonical 50/50 net split after Paystack (revenue engine)
@@ -710,6 +708,10 @@ AUDIT_FEE_USD_STANDARD = 2625.0
 PAYSTACK_INTL_CARD_FEE_PCT = 0.039  # ~3.9% on international cards (configurable estimate)
 FX_FALLBACK_USD_ZAR = 18.50  # if live FX APIs fail
 FX_CACHE_TTL_SEC = 3600  # 1 hour cache for USD/ZAR
+
+# Client View — Phantom / mainnet USDC settlement (verify tx server-side in production)
+SOLANA_USDC_RECEIVER_ADDR = "C24c9rqK1piEJPNXzPT4SPxN4WcdDoypGbHNBB41fy15"
+SOLANA_USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
 # Main dashboard header line (War Room + Agent Console — compliance row uses this text)
 DASHBOARD_TITLE_LINE = "SENTURION AI SOLUTIONS | CEO: EDUARD DE LANGE | CFO: MONRÉ WESSEL NAGEL"
@@ -1223,10 +1225,16 @@ if "revenue_vault" not in st.session_state:
     st.session_state.revenue_vault = []
 if "audit_results" not in st.session_state:
     st.session_state.audit_results = []
+if "total_recoverable" not in st.session_state:
+    st.session_state.total_recoverable = 0.0
 if "audit_log_history" not in st.session_state:
     st.session_state.audit_log_history = []
 if "client_view_mode" not in st.session_state:
     st.session_state.client_view_mode = False
+if "is_paid" not in st.session_state:
+    st.session_state.is_paid = False
+if "client_view_open_paystack" not in st.session_state:
+    st.session_state.client_view_open_paystack = False
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "user_role" not in st.session_state:
@@ -5929,13 +5937,52 @@ def _gemini_extract_chunk_raw(
     return raw_text, fr_int, fr_name
 
 
+def _gemini_coerce_extraction_to_rows(raw_model_output: str) -> list[dict]:
+    """
+    Second Gemini pass: primary output was not strict CSV. Ask the model to emit CSV rows only
+    (no pandas / no upload parsing — raw model text in, CSV rows out).
+    """
+    blob = (raw_model_output or "").strip()
+    if not blob or model is None:
+        return []
+    if len(blob) > 14000:
+        blob = blob[:14000] + "\n…[truncated for coercion pass]"
+    coerce_prompt = (
+        "Convert the following extraction into a machine-readable CSV table ONLY.\n"
+        "Header row MUST be exactly:\n"
+        "Patient ID,Patient Name,Denial Code,Reason for Denial,Fix Action,"
+        "Place of Service (State),Law Cited,Potential Revenue,Denial Date,Payer Name\n"
+        "Potential Revenue must be numeric USD (no $). One data row per denial. "
+        "Output ONLY the header line plus data lines — no markdown fences, no commentary.\n\n"
+        f"---\n{blob}"
+    )
+    try:
+        response = model.generate_content(
+            coerce_prompt,
+            generation_config={"max_output_tokens": 4096, "temperature": 0.0},
+        )
+        txt = (response.text or "").strip()
+    except Exception:
+        return []
+    if not txt:
+        return []
+    return _parse_denial_csv_from_raw(txt) or _recover_denial_rows_from_partial_csv(txt) or []
+
+
 def _rows_from_model_raw(raw_text: str) -> list[dict]:
     if not (raw_text or "").strip():
         return []
     parsed = _parse_denial_csv_from_raw(raw_text)
     if parsed:
         return parsed
-    return _recover_denial_rows_from_partial_csv(raw_text) or []
+    recovered = _recover_denial_rows_from_partial_csv(raw_text) or []
+    if recovered:
+        return recovered
+    if len(raw_text.strip()) > 40:
+        coerced = _gemini_coerce_extraction_to_rows(raw_text)
+        if coerced:
+            return coerced
+    return []
 
 
 def _predator_process_one_chunk(
@@ -6018,6 +6065,7 @@ def extract_denial_data(text: str, *, headless: bool = False) -> tuple[list[dict
     }
 
     text_input = (text or "").strip()
+    meta["input_text_len"] = len(text_input)
     if not text_input:
         meta["status"] = "EMPTY"
         return [], meta
@@ -6050,18 +6098,24 @@ def extract_denial_data(text: str, *, headless: bool = False) -> tuple[list[dict
     if progress_text is not None:
         progress_text.success("✅ Neural audit segment complete. Neural Audit Summary updated.")
     meta["status"] = "SUCCESS"
+    if not all_extracted_rows:
+        _amts = _scan_labeled_revenue_amounts(text_input)
+        if _amts:
+            meta["estimated_total_revenue_usd"] = float(max(_amts))
     return (all_extracted_rows if all_extracted_rows else []), meta
 
 
 def process_pasted_audit(raw_text: str) -> tuple[list[dict], dict]:
     """
-    Fail-safe manual path: run the same Gemini extraction + CSV normalization as PDF uplink.
-    Accepts pasted denial letter text or raw CSV-like rows.
+    Manual paste path: raw string goes straight to Gemini (batch predator); no CSV/DataFrame validation
+    on the pasted text before the model runs.
     """
     t = (raw_text or "").strip()
     if len(t) < 20:
         return [], {"finish_reason": None, "finish_reason_name": None, "error": "insufficient_text"}
-    return extract_denial_data(t)
+    data, meta = extract_denial_data(t)
+    meta["paste_mode"] = True
+    return data, meta
 
 
 def _strip_brackets(val: str) -> str:
@@ -7542,8 +7596,160 @@ else:
             _treasury_invoice_dialog_body()
 
 
+def _client_view_apply_solana_settled_query_param() -> None:
+    """Phantom bridge: reload with ?solana_settled=1 → unlock ledger (spoofable; verify on-chain in prod)."""
+    if not hasattr(st, "query_params"):
+        return
+    qp = st.query_params
+    raw = qp.get("solana_settled")
+    if raw is None:
+        return
+    ok = (raw == "1") or (isinstance(raw, list) and any(str(x).strip() == "1" for x in raw))
+    if not ok:
+        return
+    st.session_state.is_paid = True
+    try:
+        del qp["solana_settled"]
+    except Exception:
+        try:
+            qp.pop("solana_settled", None)
+        except Exception:
+            pass
+    st.rerun()
+
+
+def _phantom_solana_settlement_html(fee_usd: float, button_label: str) -> str:
+    """Phantom wallet iframe: mainnet USDC transfer; success → top navigation with solana_settled=1."""
+    _fee = json.dumps(float(fee_usd))
+    _recv = json.dumps(SOLANA_USDC_RECEIVER_ADDR)
+    _mint = json.dumps(SOLANA_USDC_MINT_MAINNET)
+    _lbl = json.dumps(button_label)
+    return f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"/></head>
+<body style="margin:0;padding:0;font-family:system-ui,sans-serif;">
+<button type="button" id="senturion-phantom-pay" style="width:100%;padding:0.55rem 0.65rem;background:linear-gradient(135deg,#007bff 0%,#0056b3 100%);color:#fff;border:1px solid #0056b3;border-radius:8px;font-weight:bold;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;font-size:0.78rem;">
+</button>
+<p id="senturion-phantom-status" style="font-size:0.68rem;color:#94a3b8;margin:0.4rem 0 0;line-height:1.35;">Mainnet USDC · Phantom</p>
+<script type="module">
+const FEE_USDC = {_fee};
+const RECEIVER_STR = {_recv};
+const MINT_STR = {_mint};
+const BTN_LABEL = {_lbl};
+document.getElementById("senturion-phantom-pay").textContent = BTN_LABEL;
+
+async function settleUsdc() {{
+  const statusEl = document.getElementById("senturion-phantom-status");
+  const provider = window.solana;
+  if (!provider || !provider.isPhantom) {{
+    alert("Please install Phantom Wallet to settle via Crypto");
+    return;
+  }}
+  statusEl.textContent = "Connecting Phantom…";
+  try {{
+    await provider.connect();
+  }} catch (e) {{
+    alert(e && e.message ? e.message : "Could not connect to Phantom");
+    statusEl.textContent = "Connection cancelled.";
+    return;
+  }}
+  try {{
+    const web3Mod = await import("https://esm.sh/@solana/web3.js@1.95.0");
+    const web3 = web3Mod.default || web3Mod;
+    const {{
+      Connection,
+      PublicKey,
+      Transaction,
+    }} = web3;
+    const splMod = await import("https://esm.sh/@solana/spl-token@0.4.9?deps=@solana/web3.js@1.95.0");
+    const spl = splMod.default || splMod;
+    const {{
+      getAssociatedTokenAddress,
+      createAssociatedTokenAccountInstruction,
+      createTransferCheckedInstruction,
+      getAccount,
+      TOKEN_PROGRAM_ID,
+    }} = spl;
+
+    const connection = new Connection("https://api.mainnet-beta.solana.com", "confirmed");
+    const mint = new PublicKey(MINT_STR);
+    const receiver = new PublicKey(RECEIVER_STR);
+    const payer = provider.publicKey;
+    const amount = BigInt(Math.round(Number(FEE_USDC) * 1_000_000));
+
+    const sourceAta = await getAssociatedTokenAddress(mint, payer, false);
+    const destAta = await getAssociatedTokenAddress(mint, receiver, false);
+
+    const srcInfo = await connection.getAccountInfo(sourceAta);
+    if (!srcInfo) {{
+      alert("No USDC token account for this wallet. Send USDC to your Phantom wallet first.");
+      statusEl.textContent = "No USDC ATA.";
+      return;
+    }}
+    const srcAcc = await getAccount(connection, sourceAta);
+    if (srcAcc.amount < amount) {{
+      alert("Insufficient USDC balance for this settlement.");
+      statusEl.textContent = "Insufficient USDC.";
+      return;
+    }}
+
+    const ixs = [];
+    const destInfo = await connection.getAccountInfo(destAta);
+    if (!destInfo) {{
+      ixs.push(
+        createAssociatedTokenAccountInstruction(payer, destAta, receiver, mint)
+      );
+    }}
+    ixs.push(
+      createTransferCheckedInstruction(
+        sourceAta,
+        mint,
+        destAta,
+        payer,
+        amount,
+        6,
+        [],
+        TOKEN_PROGRAM_ID
+      )
+    );
+
+    const {{ blockhash, lastValidBlockHeight }} = await connection.getLatestBlockhash("finalized");
+    const tx = new Transaction({{ feePayer: payer, recentBlockhash: blockhash }});
+    tx.add(...ixs);
+
+    statusEl.textContent = "Approve in Phantom…";
+    const {{ signature }} = await provider.signAndSendTransaction(tx, {{
+      skipPreflight: false,
+      preflightCommitment: "confirmed",
+    }});
+    await connection.confirmTransaction({{ signature, blockhash, lastValidBlockHeight }}, "confirmed");
+
+    statusEl.textContent = "Confirmed. Updating ledger…";
+    try {{
+      const u = new URL(window.top.location.href);
+      u.searchParams.set("solana_settled", "1");
+      window.top.location.href = u.toString();
+    }} catch (e2) {{
+      const base = window.location.href.split("?")[0];
+      window.location.href = base + "?solana_settled=1";
+    }}
+  }} catch (err) {{
+    const msg = err && err.message ? err.message : String(err);
+    alert(msg);
+    const statusEl2 = document.getElementById("senturion-phantom-status");
+    if (statusEl2) statusEl2.textContent = "Transaction failed.";
+  }}
+}}
+
+document.getElementById("senturion-phantom-pay").addEventListener("click", () => {{
+  settleUsdc();
+}});
+</script>
+</body></html>"""
+
+
 def _render_client_facing_view(clinic_name: str) -> None:
     """Client View: Hero Recovery Opportunity + glowing Pay Audit Fee (V2.0)."""
+    _client_view_apply_solana_settled_query_param()
     _ = clinic_name  # branding context only — surface stays minimal
     st.markdown(
         """
@@ -7589,9 +7795,16 @@ section.main div[data-testid="stDownloadButton"] button {
         '<h1 class="hud-title" style="border:none;">Revenue Recovery · Client View</h1>',
         unsafe_allow_html=True,
     )
-    # Fixed hero headline (Client View) — stable Armani Suit; not wired to live audit totals
-    _hero_val = f"${CLIENT_VIEW_OPPORTUNITY_USD:,.2f}"
-    _hero_sub = "Recovery Opportunity · proceed to secure payment"
+    # Live totals from AI / neural audit pipeline (audit_results → Recoverable sum)
+    _total_rec = float(_audit_results_total_recoverable_usd())
+    _fee = _audit_fee_from_recoverable_usd(_total_rec)
+    _display_rec = max(0.0, _total_rec)
+    _hero_val = f"${_display_rec:,.2f}"
+    _hero_sub = (
+        "Run a Neural Audit in the War Room to populate recoverable amounts."
+        if _display_rec <= 0
+        else "Recovery Opportunity · proceed to secure payment"
+    )
     st.markdown(
         f"""
 <div class="client-pitch-hero client-v2-hero">
@@ -7602,12 +7815,56 @@ section.main div[data-testid="stDownloadButton"] button {
 """,
         unsafe_allow_html=True,
     )
-    _total_rec = _audit_results_total_recoverable_usd()
-    _fee = _audit_fee_from_recoverable_usd(_total_rec)
     st.caption(
-        f"Audit fee (15% of recoverable): **${_fee:,.2f}** — Paystack hosted checkout below."
+        f"Settlement fee ({MSA_SUCCESS_FEE_PERCENT}% of recoverable): **${_fee:,.2f}** — choose a settlement rail below."
     )
-    _render_paystack_audit_fee_cta()
+    _usdc_lbl = (
+        f"{int(round(_fee))}"
+        if _fee >= 0 and abs(_fee - round(_fee)) < 0.005
+        else f"{_fee:.2f}"
+    )
+
+    col_fiat, col_crypto = st.columns(2)
+    with col_fiat:
+        if st.button(
+            f"SETTLE VIA PAYSTACK (${_fee:,.2f})",
+            key="client_view_settle_paystack",
+            use_container_width=True,
+            disabled=bool(_fee <= 0),
+        ):
+            st.session_state.client_view_open_paystack = True
+    with col_crypto:
+        if _fee <= 0:
+            st.caption("Run a neural audit to enable crypto settlement.")
+        else:
+            _sol_lbl = f"SETTLE VIA SOLANA ({_usdc_lbl} USDC)"
+            components.html(
+                _phantom_solana_settlement_html(_fee, _sol_lbl),
+                height=140,
+                scrolling=False,
+            )
+
+    st.warning("⚠️ AUDIT LEDGER LOCKED | AWAITING SETTLEMENT CONFIRMATION")
+
+    if st.session_state.get("client_view_open_paystack"):
+        _render_paystack_audit_fee_cta()
+
+    if st.session_state.get("is_paid", False):
+        _rebuild_audit_results()
+        _ar_dl = st.session_state.get("audit_results") or []
+        if _ar_dl:
+            try:
+                _df_dl = pd.DataFrame(_ar_dl)
+                _csv_bytes = _df_dl.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="Download audit results (CSV)",
+                    data=_csv_bytes,
+                    file_name="senturion_audit_results.csv",
+                    mime="text/csv",
+                    key="client_view_audit_results_download",
+                )
+            except Exception:
+                st.caption("Audit results export failed — try again after the next audit run.")
 
 
 def _render_vault_institutional_dashboard() -> None:
@@ -8224,6 +8481,23 @@ def _render_neural_extraction_results(
                 )
 
     if not data:
+        if meta.get("error") == "insufficient_text":
+            return
+        _had_substantive_input = int(meta.get("input_text_len") or 0) >= 20
+        if _had_substantive_input or meta.get("status") == "SUCCESS":
+            _est = meta.get("estimated_total_revenue_usd")
+            if _est is not None:
+                st.session_state.total_recoverable = float(_est)
+            else:
+                st.session_state.total_recoverable = 0.0
+            st.warning(
+                "The model did not return structured denial rows as CSV. "
+                "If the response was truncated, try **Partial Recovery** or a shorter paste."
+            )
+            if meta.get("raw_response_text"):
+                with st.expander("Model output (debug)"):
+                    st.code(str(meta.get("raw_response_text") or "")[:12000])
+            return
         st.info("No denial data could be extracted. The document may not contain structured denial information.")
         return
 
@@ -8253,6 +8527,8 @@ def _render_neural_extraction_results(
         else:
             r["Payer Name"] = _pn
     st.session_state.neural_audit_batch = data
+    _tr_total = sum(_parse_amount_denied(r.get("Potential Revenue", "0")) for r in data)
+    st.session_state.total_recoverable = round(float(_tr_total), 2)
 
     _render_payer_intelligence_strategy_panel(data)
 
@@ -9761,9 +10037,15 @@ def _render_paystack_audit_fee_cta() -> None:
     _fee_lbl = f"{_fee_usd:,.2f}"
 
     if _amount_cents < 1:
-        st.info(
-            "**Pending Neural Audit** — recoverable total is $0.00. Run an audit in the War Room; "
-            "the Pay Audit Fee (15% of recoverable) will appear here."
+        st.caption(
+            "**Pending Neural Audit** — recoverable total is **$0.00**. Run an audit in the War Room; "
+            f"the Pay Audit Fee ({MSA_SUCCESS_FEE_PERCENT}% of recoverable) updates automatically."
+        )
+        st.button(
+            f"Pay Audit Fee (${_fee_lbl})",
+            disabled=True,
+            use_container_width=True,
+            key="paystack_audit_fee_zero_btn",
         )
         return
 
