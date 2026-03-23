@@ -279,6 +279,25 @@ def _inject_stealth_ui_deep_clean_css() -> None:
         box-shadow: none !important;
         border-color: #475569 !important;
     }
+    /* Sidebar session strip — Deep Dark (all roles) */
+    [data-testid="stSidebar"] .senturion-sidebar-session-strip {
+        background: #0E1117 !important;
+        border: 1px solid #262730 !important;
+        border-radius: 4px !important;
+        padding: 0.65rem 0.75rem !important;
+        margin: 0 0 0.65rem 0 !important;
+        box-shadow: none !important;
+    }
+    [data-testid="stSidebar"] .senturion-sidebar-session-strip .senturion-active-session {
+        margin: 0 !important;
+        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+        font-size: 0.7rem !important;
+        letter-spacing: 0.06em !important;
+        color: #94a3b8 !important;
+    }
+    [data-testid="stSidebar"] .senturion-sidebar-session-strip .sas-email {
+        color: #e2e8f0 !important;
+    }
 </style>
 """,
         unsafe_allow_html=True,
@@ -447,6 +466,33 @@ def _inject_senturion_reviewer_theme_lock_css() -> None:
         pointer-events: auto !important;
         opacity: 1 !important;
         filter: none !important;
+        z-index: 5 !important;
+    }
+    /* Fallback checkout link + expanders stay usable */
+    section.main a.senturion-blue-pay-fallback,
+    section.main [data-testid="stExpander"] {
+        pointer-events: auto !important;
+        opacity: 1 !important;
+        filter: none !important;
+    }
+    /* Executive hero — largest visible text in sidebar */
+    [data-testid="stSidebar"] .reviewer-sidebar-executive-hero {
+        padding: 0.85rem 0.75rem !important;
+        margin-bottom: 0.75rem !important;
+        border: 1px solid rgba(56, 189, 248, 0.35) !important;
+        background: linear-gradient(180deg, #0f172a 0%, #020617 100%) !important;
+    }
+    [data-testid="stSidebar"] .reviewer-sidebar-executive-hero .rse-head {
+        font-size: 0.62rem !important;
+        margin-bottom: 0.55rem !important;
+    }
+    [data-testid="stSidebar"] .reviewer-sidebar-executive-hero .rse-ceo {
+        font-size: 0.95rem !important;
+        line-height: 1.35 !important;
+    }
+    [data-testid="stSidebar"] .reviewer-sidebar-executive-hero .rse-cfo {
+        font-size: 0.92rem !important;
+        line-height: 1.35 !important;
     }
     /* Secure Logout — dark, thin white border, no white hover/focus bloom */
     [data-testid="stSidebar"] [data-testid="stButton"] button {
@@ -9492,11 +9538,47 @@ def _paystack_audit_fee_checkout_url() -> str:
     return _paystack_release_checkout_url()
 
 
+def _get_paystack_public_key() -> str:
+    """Public key for Paystack Inline (client-side)."""
+    try:
+        pk = str(st.secrets["PAYSTACK_PUBLIC_KEY"]).strip()
+        return pk
+    except Exception:
+        return ""
+
+
+def _paystack_checkout_fallback_url() -> str:
+    """Direct checkout URL using public key (fallback if Inline JS fails)."""
+    pk = _get_paystack_public_key()
+    if not pk:
+        return ""
+    from urllib.parse import quote
+
+    return f"https://checkout.paystack.com/checkout?key={quote(pk, safe='')}"
+
+
 def _render_paystack_audit_fee_cta() -> None:
-    """Primary CTA: opens Paystack hosted checkout in a dedicated window (modal-style)."""
-    _url = _paystack_audit_fee_checkout_url()
-    _u = json.dumps(_url)
-    components.html(
+    """Paystack Inline overlay (PaystackPop) + HTML fallback link. Amount: USD $2,625."""
+    pk = _get_paystack_public_key()
+    _em = (
+        (st.session_state.get("email") or "").strip()
+        or DEMO_PAYSTACK_EMAIL
+    )
+    _em_js = json.dumps(_em)
+    pk_js = json.dumps(pk)
+    # USD: amount in subunits (cents)
+    _amount_cents = int(round(float(AUDIT_FEE_USD_STANDARD) * 100.0))
+    _ref = f"senturion_audit_{uuid.uuid4().hex[:12]}"
+    _fallback = _paystack_checkout_fallback_url()
+    _fallback_esc = html_std.escape(_fallback) if _fallback else ""
+
+    if not pk:
+        st.warning("Add **PAYSTACK_PUBLIC_KEY** to `.streamlit/secrets.toml` to enable Paystack checkout.")
+        return
+
+    # Primary: Paystack Inline (overlay) via official JS; fallback: direct checkout URL
+    try:
+        components.html(
         f"""
 <style>
   #senturion-audit-fee-btn {{
@@ -9513,26 +9595,116 @@ def _render_paystack_audit_fee_cta() -> None:
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     box-shadow: none !important;
   }}
-  #senturion-audit-fee-btn:hover {{ border-color: #7dd3fc !important; color: #020617 !important; background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%) !important; box-shadow: none !important; }}
-  #senturion-audit-fee-btn:focus,
-  #senturion-audit-fee-btn:focus-visible {{
-    outline: none !important;
-    border: 1px solid #ffffff !important;
-    color: #d4af37 !important;
-    background: #0f172a !important;
-    box-shadow: none !important;
+  #senturion-audit-fee-btn:hover {{ border-color: #7dd3fc !important; color: #020617 !important;
+    background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%) !important; }}
+  .senturion-pay-fallback-link {{
+    display: inline-block;
+    margin-top: 0.65rem;
+    padding: 0.5rem 0.85rem;
+    background: #0369a1;
+    color: #f0f9ff !important;
+    border: 1px solid #0ea5e9;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.72rem;
+    text-decoration: none !important;
   }}
 </style>
-<div style="text-align:center;padding:0.35rem 0 0.6rem;font-family:'JetBrains Mono',ui-monospace,monospace;">
-  <button type="button" id="senturion-audit-fee-btn" class="senturion-pay-now-cta"
-    onclick="window.open({_u}, 'paystack_checkout', 'width=520,height=720,scrollbars=yes')">
-    Pay Audit Fee · $2,625
-  </button>
-  <p style="color:#94a3b8;font-size:0.65rem;margin:0.6rem 0 0;letter-spacing:0.04em;">Pay Audit Fee — opens hosted Paystack checkout</p>
+<div style="text-align:center;padding:0.35rem 0 0.5rem;font-family:'JetBrains Mono',ui-monospace,monospace;">
+  <button type="button" id="senturion-audit-fee-btn">Pay $2,625 Audit Fee</button>
+  <p style="color:#94a3b8;font-size:0.62rem;margin:0.55rem 0 0;letter-spacing:0.04em;">
+    Opens Paystack secure overlay (Inline)</p>
+  <a id="senturion-paystack-fallback" class="senturion-pay-fallback-link" href="{_fallback_esc}" target="_blank" rel="noopener noreferrer">Fallback: open checkout</a>
 </div>
+<script>
+(function() {{
+  var pk = {pk_js};
+  var email = {_em_js};
+  var amount = {_amount_cents};
+  var ref = {json.dumps(_ref)};
+  function openPaystackOverlay() {{
+    if (!window.PaystackPop) {{
+      var u = {json.dumps(_fallback)};
+      if (u) window.open(u, '_blank', 'noopener,noreferrer');
+      return;
+    }}
+    try {{
+      var handler = PaystackPop.setup({{
+        key: pk,
+        email: email,
+        amount: amount,
+        currency: 'USD',
+        ref: ref,
+        callback: function(response) {{}},
+        onClose: function() {{}}
+      }});
+      handler.openIframe();
+    }} catch (e) {{
+      var u = {json.dumps(_fallback)};
+      if (u) window.open(u, '_blank', 'noopener,noreferrer');
+    }}
+  }}
+  function loadScript(src, cb) {{
+    var s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.onload = function() {{ cb(null); }};
+    s.onerror = function() {{ cb(new Error('load fail')); }};
+    document.head.appendChild(s);
+  }}
+  document.getElementById('senturion-audit-fee-btn').addEventListener('click', function(ev) {{
+    ev.preventDefault();
+    if (window.PaystackPop) {{ openPaystackOverlay(); return; }}
+    loadScript('https://js.paystack.co/v1/inline.js', function(err) {{
+      if (err || !window.PaystackPop) {{
+        var u = {json.dumps(_fallback)};
+        if (u) window.open(u, '_blank', 'noopener,noreferrer');
+        return;
+      }}
+      openPaystackOverlay();
+    }});
+  }});
+}})();
+</script>
 """,
-        height=150,
-    )
+            height=220,
+        )
+    except Exception:
+        fb = _paystack_checkout_fallback_url()
+        if fb:
+            st.markdown(
+                f"""
+<style>
+.senturion-blue-pay-fallback {{
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.55rem 1rem;
+  background: linear-gradient(180deg, #0ea5e9 0%, #0369a1 100%);
+  color: #f0f9ff !important;
+  border: 1px solid #38bdf8;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none !important;
+  letter-spacing: 0.05em;
+}}
+</style>
+<a href="{html_std.escape(fb)}" target="_blank" rel="noopener noreferrer" class="senturion-blue-pay-fallback">Pay $2,625 Audit Fee — direct checkout</a>
+""",
+                unsafe_allow_html=True,
+            )
+        st.caption("Inline component failed — using fallback link.")
+
+    # Secondary fallback outside iframe (parent page) — always available if key present
+    fb2 = _paystack_checkout_fallback_url()
+    if pk and fb2:
+        with st.expander("Direct Paystack checkout (fallback)", expanded=False):
+            st.markdown(
+                f'<a href="{html_std.escape(fb2)}" target="_blank" rel="noopener noreferrer" '
+                f'class="senturion-blue-pay-fallback">https://checkout.paystack.com/checkout?key=…</a>',
+                unsafe_allow_html=True,
+            )
 
 
 def _render_demo_audit_page() -> None:
@@ -9607,10 +9779,21 @@ def main():
             (st.session_state.get("email") or "").strip()
             or (st.session_state.user.email if st.session_state.user else "")
         )
+        # Reviewer: CEO/CFO first (highest visibility); then session strip
+        if _demo or perms.is_reviewer:
+            st.markdown(
+                '<div class="reviewer-sidebar-executive reviewer-sidebar-executive-hero">'
+                '<p class="rse-head">Executive leadership</p>'
+                '<p class="rse-line rse-ceo"><strong>CEO:</strong> Eduard de Lange</p>'
+                '<p class="rse-line rse-cfo"><strong>CFO:</strong> Monré Wessel Nagel</p>'
+                "</div>",
+                unsafe_allow_html=True,
+            )
+            st.caption("Neural Audit Demo · Reviewer · Paystack merchant preview (Secure Clinical Logic)")
         st.markdown(
-            f'<p style="font-family: \'JetBrains Mono\', monospace; letter-spacing: 2px; '
-            f'text-transform: uppercase; font-size: 0.72rem; color: #E0E0E0;">'
-            f"Active session · <code style=\"color:#E0E0E0;\">{user_email}</code></p>",
+            f'<div class="senturion-sidebar-session-strip"><p class="senturion-active-session">'
+            f'<span class="sas-label">Active session</span> · '
+            f'<code class="sas-email">{html_std.escape(user_email)}</code></p></div>',
             unsafe_allow_html=True,
         )
         if perms.can_clinic_portal:
@@ -9628,16 +9811,6 @@ def main():
                 unsafe_allow_html=True,
             )
         st.caption(f"Access tier: **{(role or '…').upper()}**")
-        if _demo or perms.is_reviewer:
-            st.caption("Neural Audit Demo · Reviewer · Paystack merchant preview (Secure Clinical Logic)")
-            st.markdown(
-                '<div class="reviewer-sidebar-executive">'
-                '<p class="rse-head">Executive leadership</p>'
-                '<p class="rse-line rse-ceo"><strong>CEO:</strong> Eduard de Lange</p>'
-                '<p class="rse-line rse-cfo"><strong>CFO:</strong> Monré Wessel Nagel</p>'
-                "</div>",
-                unsafe_allow_html=True,
-            )
         if perms.can_appeal_engine and not _demo:
             st.toggle("Switch to Client View", key="client_view_mode")
         _cv = bool(st.session_state.get("client_view_mode"))
