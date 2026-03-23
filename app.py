@@ -99,39 +99,6 @@ section[data-testid="stMain"] {
     font-family: "Inter", sans-serif !important;
 }
 
-/* Sidebar — True Dark */
-[data-testid="stSidebar"],
-[data-testid="stSidebar"] > div,
-[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-    background-color: #0B0E14 !important;
-    background-image: none !important;
-    color: #f1f5f9 !important;
-    border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
-    font-family: "Inter", sans-serif !important;
-}
-
-[data-testid="stSidebar"] .block-container {
-    background-color: rgba(255, 255, 255, 0.05) !important;
-    backdrop-filter: blur(10px) !important;
-    -webkit-backdrop-filter: blur(10px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    border-radius: 16px !important;
-    color: #e8eaed !important;
-}
-
-/* Switch to Client View — red label + crimson toggle (Armani Suit; no Nexus routing) */
-[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] p {
-    color: #ef4444 !important;
-    font-weight: 700 !important;
-    text-shadow: 0 0 14px rgba(239, 68, 68, 0.45) !important;
-}
-[data-testid="stSidebar"] [data-baseweb="switch"] {
-    background-color: rgba(127, 29, 29, 0.55) !important;
-}
-[data-testid="stSidebar"] [data-baseweb="switch"][aria-checked="true"] {
-    background-color: rgba(220, 38, 38, 0.92) !important;
-}
-
 /* Glass — all grey / default boxes */
 section.main .block-container,
 [data-testid="stVerticalBlockBorderWrapper"],
@@ -533,46 +500,6 @@ def _inject_stealth_ui_deep_clean_css() -> None:
         box-shadow: none !important;
         border-color: #475569 !important;
     }
-    /* Sidebar session strip — glass (no white “card” boxes) */
-    [data-testid="stSidebar"] .senturion-sidebar-session-strip {
-        background: rgba(15, 23, 42, 0.42) !important;
-        backdrop-filter: blur(12px) saturate(1.1) !important;
-        -webkit-backdrop-filter: blur(12px) saturate(1.1) !important;
-        border: 1px solid rgba(148, 163, 184, 0.22) !important;
-        border-radius: 10px !important;
-        padding: 0.65rem 0.75rem !important;
-        margin: 0 0 0.65rem 0 !important;
-        box-shadow: none !important;
-    }
-    [data-testid="stSidebar"] .senturion-sidebar-session-strip .senturion-active-session {
-        margin: 0 !important;
-        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
-        font-size: 0.7rem !important;
-        letter-spacing: 0.06em !important;
-        color: #94a3b8 !important;
-    }
-    [data-testid="stSidebar"] .senturion-sidebar-session-strip .sas-email,
-    [data-testid="stSidebar"] .senturion-sidebar-session-strip code {
-        color: #e2e8f0 !important;
-        background: transparent !important;
-        border: none !important;
-        padding: 0 !important;
-        box-shadow: none !important;
-    }
-    /* Secure Logout — dark glass, no white fill */
-    [data-testid="stSidebar"] [data-testid="stButton"] button[kind="secondary"],
-    [data-testid="stSidebar"] [data-testid="stButton"] button {
-        background: rgba(15, 23, 42, 0.55) !important;
-        background-image: none !important;
-        color: #e2e8f0 !important;
-        border: 1px solid rgba(148, 163, 184, 0.35) !important;
-        box-shadow: none !important;
-        -webkit-box-shadow: none !important;
-    }
-    [data-testid="stSidebar"] [data-testid="stButton"] button:hover {
-        background: rgba(30, 41, 59, 0.75) !important;
-        border-color: rgba(56, 189, 248, 0.45) !important;
-    }
 </style>
 """,
         unsafe_allow_html=True,
@@ -587,10 +514,6 @@ def _inject_nuclear_white_overlay_kill_css() -> None:
     /* Shell: transparent blocks + white copy (removes phantom light panels) */
     [data-testid="stVerticalBlock"] > div,
     [data-testid="element-container"] {
-        background-color: rgba(0, 0, 0, 0) !important;
-        color: #ffffff !important;
-    }
-    [data-testid="stSidebar"] {
         background-color: rgba(0, 0, 0, 0) !important;
         color: #ffffff !important;
     }
@@ -659,18 +582,9 @@ def _inject_senturion_reviewer_theme_lock_css() -> None:
         border-color: #334155 !important;
         box-shadow: none !important;
     }
-    [data-testid="stHeader"], [data-testid="stToolbar"] {
+    [data-testid="stToolbar"] {
         background: #0a0f1a !important;
         border-color: #334155 !important;
-    }
-    [data-testid="stSidebar"] {
-        background: #070b12 !important;
-        border-right-color: #334155 !important;
-    }
-    [data-testid="stSidebar"] .block-container {
-        background: #111827 !important;
-        border-color: #334155 !important;
-        box-shadow: none !important;
     }
     /* Primary link buttons (e.g. Paystack) in main */
     [data-testid="stLinkButton"] a[kind="primary"],
@@ -749,63 +663,6 @@ def _inject_senturion_reviewer_theme_lock_css() -> None:
         pointer-events: auto !important;
         opacity: 1 !important;
         filter: none !important;
-    }
-    /* Executive hero — largest visible text in sidebar */
-    [data-testid="stSidebar"] .reviewer-sidebar-executive-hero {
-        padding: 0.85rem 0.75rem !important;
-        margin-bottom: 0.75rem !important;
-        border: 1px solid rgba(56, 189, 248, 0.35) !important;
-        background: linear-gradient(180deg, #0f172a 0%, #020617 100%) !important;
-    }
-    [data-testid="stSidebar"] .reviewer-sidebar-executive-hero .rse-head {
-        font-size: 0.62rem !important;
-        margin-bottom: 0.55rem !important;
-    }
-    [data-testid="stSidebar"] .reviewer-sidebar-executive-hero .rse-ceo {
-        font-size: 0.95rem !important;
-        line-height: 1.35 !important;
-    }
-    [data-testid="stSidebar"] .reviewer-sidebar-executive-hero .rse-cfo {
-        font-size: 0.92rem !important;
-        line-height: 1.35 !important;
-    }
-    /* Secure Logout — glass dark, no white panel */
-    [data-testid="stSidebar"] [data-testid="stButton"] button {
-        width: 100% !important;
-        min-height: 2.5rem !important;
-        margin-top: 0.25rem !important;
-        background: rgba(15, 23, 42, 0.55) !important;
-        background-image: none !important;
-        color: #e2e8f0 !important;
-        border: 1px solid rgba(148, 163, 184, 0.38) !important;
-        box-shadow: none !important;
-        -webkit-box-shadow: none !important;
-        filter: none !important;
-        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
-        letter-spacing: 0.06em !important;
-        text-transform: uppercase !important;
-        font-size: 0.72rem !important;
-    }
-    [data-testid="stSidebar"] [data-testid="stButton"] button:hover {
-        background: rgba(30, 41, 59, 0.82) !important;
-        color: #e2e8f0 !important;
-        border: 1px solid rgba(56, 189, 248, 0.45) !important;
-        box-shadow: none !important;
-    }
-    [data-testid="stSidebar"] [data-testid="stButton"] button:focus,
-    [data-testid="stSidebar"] [data-testid="stButton"] button:focus-visible {
-        outline: none !important;
-        background: rgba(15, 23, 42, 0.65) !important;
-        color: #e2e8f0 !important;
-        border: 1px solid rgba(56, 189, 248, 0.55) !important;
-        box-shadow: none !important;
-    }
-    [data-testid="stSidebar"] [data-testid="stButton"] button:disabled {
-        opacity: 0.5 !important;
-        cursor: not-allowed !important;
-        pointer-events: none !important;
-        border: 1px solid rgba(255, 255, 255, 0.35) !important;
-        background: #050505 !important;
     }
 </style>
 """,
@@ -1827,11 +1684,6 @@ st.markdown("""
         transition: opacity 0.2s ease-in-out;
     }
 
-    [data-testid="stHeader"] {
-        background: #0f172a !important;
-        border-bottom: 1px solid #334155 !important;
-    }
-
     .glass-panel {
         background: #1e293b !important;
         backdrop-filter: none !important;
@@ -1873,25 +1725,6 @@ st.markdown("""
         overflow: hidden !important;
     }
 
-    [data-testid="stSidebar"] {
-        background: #0f172a !important;
-        border-right: 1px solid #334155 !important;
-        backdrop-filter: none !important;
-        position: relative;
-        overflow: auto;
-    }
-
-    [data-testid="stSidebar"] .block-container {
-        border: 1px solid #334155 !important;
-        border-radius: 4px !important;
-        padding: 0.85rem !important;
-        margin: 0.35rem 0.25rem !important;
-        background: #1e293b !important;
-    }
-
-    [data-testid="stSidebar"] .stMarkdown,
-    [data-testid="stSidebar"] .stCaptionContainer { color: #E0E0E0 !important; }
-
     /* Senturion Command Hierarchy (sidebar) */
     .senturion-command-hierarchy {
         border: 1px solid #262626 !important;
@@ -1924,11 +1757,6 @@ st.markdown("""
     .senturion-command-hierarchy .sch-sub {
         color: rgba(224, 224, 224, 0.5) !important;
         font-size: 0.6rem !important;
-    }
-
-    [data-testid="stSidebar"] img {
-        filter: none !important;
-        max-width: 100%;
     }
 
     .logo-glow { box-shadow: none !important; filter: none !important; }
@@ -10149,18 +9977,17 @@ def main():
             (st.session_state.get("email") or "").strip()
             or (st.session_state.user.email if st.session_state.user else "")
         )
-        # Leadership — top of sidebar (War Room, reviewer demo, agents)
-        if _demo or perms.is_reviewer or perms.can_appeal_engine:
-            st.markdown(
-                '<div class="reviewer-sidebar-executive reviewer-sidebar-executive-hero">'
-                '<p class="rse-head">Executive leadership</p>'
-                '<p class="rse-line rse-ceo"><strong>CEO:</strong> Eduard de Lange</p>'
-                '<p class="rse-line rse-cfo"><strong>CFO:</strong> Monré Wessel Nagel</p>'
-                "</div>",
-                unsafe_allow_html=True,
-            )
-            if _demo or perms.is_reviewer:
-                st.caption("Neural Audit Demo · Reviewer · Paystack merchant preview (Secure Clinical Logic)")
+        # --- Core sidebar (native Streamlit; fixed order: leadership → session → client toggle → logout) ---
+        st.markdown(
+            '<div class="reviewer-sidebar-executive reviewer-sidebar-executive-hero">'
+            '<p class="rse-head">Executive leadership</p>'
+            '<p class="rse-line rse-ceo"><strong>CEO:</strong> Eduard de Lange</p>'
+            '<p class="rse-line rse-cfo"><strong>CFO:</strong> Monré Wessel Nagel</p>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        if _demo or perms.is_reviewer:
+            st.caption("Neural Audit Demo · Reviewer · Paystack merchant preview (Secure Clinical Logic)")
         st.markdown(
             f'<div class="senturion-sidebar-session-strip"><p class="senturion-active-session">'
             f'<span class="sas-label">Active session</span> · '
@@ -10183,8 +10010,27 @@ def main():
             )
         st.caption(f"Access tier: **{(role or '…').upper()}**")
         if perms.can_appeal_engine and not _demo:
-            st.toggle("Switch to Client View", key="client_view_mode")
+            st.markdown(
+                '<p style="color:#ef4444;font-weight:700;margin:0.1rem 0 0.25rem;">Switch to Client View</p>',
+                unsafe_allow_html=True,
+            )
+            st.toggle("Switch to Client View", key="client_view_mode", label_visibility="collapsed")
         _cv = bool(st.session_state.get("client_view_mode"))
+
+        _logout_disabled = bool(_demo or perms.is_reviewer)
+        if _logout_disabled:
+            st.caption("Reviewer demo — **Pay Audit Fee** is the only active control.")
+        if st.button("Secure Logout", key="logout_btn", disabled=_logout_disabled):
+            try:
+                get_supabase().auth.sign_out()
+            except Exception:
+                pass
+            st.cache_data.clear()
+            # Absolute session purge — no RBAC / PII leakage between accounts on shared machines.
+            st.session_state.clear()
+            st.rerun()
+
+        st.markdown("---")
 
         if not _demo and not _cv and not perms.can_clinic_portal:
             st.markdown(
@@ -10201,19 +10047,6 @@ def main():
                 _render_neural_activity_sidebar_ghost()
         elif not _cv and perms.can_clinic_portal:
             st.caption("**Clinic portal** — uploads & audit reports only (no internal treasury).")
-
-        _logout_disabled = bool(_demo or perms.is_reviewer)
-        if _logout_disabled:
-            st.caption("Reviewer demo — **Pay Audit Fee** is the only active control.")
-        if st.button("Secure Logout", key="logout_btn", disabled=_logout_disabled):
-            try:
-                get_supabase().auth.sign_out()
-            except Exception:
-                pass
-            st.cache_data.clear()
-            # Absolute session purge — no RBAC / PII leakage between accounts on shared machines.
-            st.session_state.clear()
-            st.rerun()
 
         if not _demo and not _cv and not perms.can_clinic_portal and HAS_LOTTIE and st_lottie:
             lottie_data = _fetch_lottie_json(NEURAL_LOTTIE_URL)
