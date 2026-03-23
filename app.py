@@ -8434,6 +8434,41 @@ def _render_executive_brief_controls(claims: list[dict], *, key_prefix: str) -> 
         )
 
 
+def _regex_extract_money_amounts_fallback(ai_response_text: str) -> list[float]:
+    """When the LLM returns prose/markdown instead of CSV, pull dollar amounts for vault / Client View."""
+    if not (ai_response_text or "").strip():
+        return []
+    try:
+        vals = re.findall(r"\$?([\d,]+\.\d{2})", ai_response_text)
+        return [float(v.replace(",", "")) for v in vals]
+    except (ValueError, TypeError):
+        return []
+
+
+def _synthetic_neural_row_from_regex_usd(max_amt: float) -> dict:
+    """Single-row batch so Revenue Vault + audit_results can ingest a regex-derived total."""
+    _ensure_clinic_profiles()
+    _ac = st.session_state.get("active_clinic_id")
+    _amt_s = _format_potential_revenue_cell(max_amt)
+    return {
+        "Patient ID": "—",
+        "Patient Name": "—",
+        "Denial Code": "—",
+        "Reason for Denial": "Regex extraction — model returned prose/markdown instead of CSV",
+        "Fix Action": "—",
+        "Place of Service (State)": "—",
+        "Law Cited": "—",
+        "Potential Revenue": _amt_s,
+        "Denial Date": "—",
+        "Payer Name": "—",
+        "Win Probability": "50",
+        "Appeal Mode": "CLINICAL",
+        "Validation": "OK",
+        "Strike": "—",
+        "clinic_id": _ac,
+    }
+
+
 def _render_neural_extraction_results(
     data: list[dict],
     meta: dict | None = None,
@@ -8485,6 +8520,40 @@ def _render_neural_extraction_results(
             return
         _had_substantive_input = int(meta.get("input_text_len") or 0) >= 20
         if _had_substantive_input or meta.get("status") == "SUCCESS":
+            _ai_blob = str(meta.get("raw_response_text") or "")
+            _amounts = _regex_extract_money_amounts_fallback(_ai_blob)
+            if _amounts:
+                _mx = float(max(_amounts))
+                st.session_state.total_recoverable = round(_mx, 2)
+                _fb_data = [_synthetic_neural_row_from_regex_usd(_mx)]
+                _ensure_clinic_profiles()
+                _ac = st.session_state.get("active_clinic_id")
+                for r in _fb_data:
+                    r["clinic_id"] = _ac
+                    r["Appeal Mode"] = _resolve_neural_appeal_mode(
+                        str(r.get("Reason for Denial", "") or ""),
+                        str(r.get("Law Cited", "") or ""),
+                    )
+                    _pn = str(r.get("Payer Name", "") or "").strip()
+                    if not _pn or _pn == "—":
+                        r["Payer Name"] = _extract_payer_from_row(r) or "—"
+                _sig_fb = hashlib.sha256(json.dumps(_fb_data, default=str).encode("utf-8")).hexdigest()[:24]
+                if st.session_state.get("neural_audit_batch_sig") != _sig_fb:
+                    st.session_state.neural_audit_batch_sig = _sig_fb
+                    st.session_state.pop("neural_exec_pdf", None)
+                    st.session_state.pop("neural_exec_fn", None)
+                st.session_state.neural_audit_batch = _fb_data
+                _sync_vault_from_neural_batch()
+                _append_audit_log(
+                    f"Regex money fallback: max USD {_mx:,.2f} locked from model text (non-CSV response)."
+                )
+                _play_success_beep()
+                st.success(
+                    f"**Recovery amount locked (regex fallback):** **${_mx:,.2f}** — CSV table not required; "
+                    "amount extracted from model text for **Client View** / Revenue Vault."
+                )
+                st.rerun()
+                return
             _est = meta.get("estimated_total_revenue_usd")
             if _est is not None:
                 st.session_state.total_recoverable = float(_est)
