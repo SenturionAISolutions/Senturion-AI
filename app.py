@@ -109,16 +109,95 @@ def _kyc_footer_html_inner() -> str:
     )
 
 
+def _kyc_footer_line_plain() -> str:
+    """Permanent KYC strip — exact copy for compliance (matches KYC_FOOTER_LINE)."""
+    return "Senturion AI Solutions | 1171 Bergsig Street, Pretoria | Merchant ID: 1774856"
+
+
+def _inject_stealth_ui_deep_clean_css() -> None:
+    """Suppress white overlays, bright alerts, and stray chrome — injected on login + app shell."""
+    st.markdown(
+        """
+<style id="senturion-deep-clean-css">
+    /* Toasts / overlays / decoration — no white flash */
+    [data-testid="stToast"],
+    [data-testid="stToast"] > div {
+        background: #0f172a !important;
+        color: #e2e8f0 !important;
+        border: 1px solid #334155 !important;
+        box-shadow: none !important;
+    }
+    [data-testid="stDecoration"] { opacity: 0.35 !important; }
+    div[data-testid="stToolbar"] { background: transparent !important; }
+    /* Dialogs / modals */
+    [data-testid="stModal"],
+    div[role="dialog"],
+    [data-baseweb="modal"] {
+        background: #0f172a !important;
+        color: #e2e8f0 !important;
+        border: 1px solid #334155 !important;
+    }
+    /* Alerts / info / warning — flat dark (no white cards) */
+    div[data-testid="stAlert"] {
+        background-color: #111111 !important;
+        background-image: none !important;
+        border: 1px solid #2a2a2a !important;
+        color: #e5e5e5 !important;
+        box-shadow: none !important;
+    }
+    div[data-testid="stAlert"] p,
+    div[data-testid="stAlert"] li,
+    div[data-testid="stAlert"] span,
+    div[data-testid="stAlert"] div {
+        color: #e5e5e5 !important;
+    }
+    /* Metrics / dataframe chrome */
+    [data-testid="stMetric"] {
+        background: #1e293b !important;
+        border: 1px solid #334155 !important;
+    }
+    /* Popover / tooltip surfaces */
+    [data-baseweb="popover"],
+    [data-baseweb="tooltip"] {
+        background: #0f172a !important;
+        color: #e2e8f0 !important;
+        border: 1px solid #334155 !important;
+    }
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
 # Paystack merchant verification — dedicated demo login (clean UI, no engine errors)
 DEMO_PAYSTACK_EMAIL = "reviews@paystack.com"
 # Emergency local bypass for Paystack merchant review (no Supabase auth). Remove after verification.
 PAYSTACK_REVIEW_BYPASS_PASSWORD = "SenturionVerify2026!"
 PAYSTACK_REVIEWER_BYPASS_USER_ID = "paystack-reviewer-bypass-local"
-# Reviewer demo — injected mock audits (Miami cohort; per-audit recoverable USD)
+# Reviewer demo — Neural Audit Summary: 3 mock claims totaling $14,250
 REVIEWER_MOCK_CLINIC = "Miami Medical Center"
 REVIEWER_MOCK_AUDIT_STATUS = "Neural Analysis Complete"
-REVIEWER_MOCK_RECOVERABLE_USD = 14250.0
-REVIEWER_MOCK_AUDIT_IDS = ("AUD-MIA-2026-001", "AUD-MIA-2026-002", "AUD-MIA-2026-003")
+REVIEWER_MOCK_CLAIMS_TOTAL_USD = 14250.0
+REVIEWER_MOCK_CLAIMS_ROWS: list[dict[str, Any]] = [
+    {
+        "Claim ID": "CLM-MIA-2026-001",
+        "Clinic": REVIEWER_MOCK_CLINIC,
+        "Status": REVIEWER_MOCK_AUDIT_STATUS,
+        "Recoverable (USD)": 4750.0,
+    },
+    {
+        "Claim ID": "CLM-MIA-2026-002",
+        "Clinic": REVIEWER_MOCK_CLINIC,
+        "Status": REVIEWER_MOCK_AUDIT_STATUS,
+        "Recoverable (USD)": 4750.0,
+    },
+    {
+        "Claim ID": "CLM-MIA-2026-003",
+        "Clinic": REVIEWER_MOCK_CLINIC,
+        "Status": REVIEWER_MOCK_AUDIT_STATUS,
+        "Recoverable (USD)": 4750.0,
+    },
+]
 # Paystack hosted checkout for “Pay Release Fee” (set real URL in .streamlit/secrets.toml)
 DEFAULT_PAYSTACK_RELEASE_CHECKOUT_URL = "https://paystack.com/pay/senturion-release-fee"
 # Standard per-claim audit fee — canonical 50/50 net split after Paystack (revenue engine)
@@ -140,7 +219,7 @@ BRAND_INSTITUTIONAL_HEADER = "SENTURION AI SOLUTIONS · NEURAL AUDIT & COMPLIANC
 DEFAULT_CLINIC_NAME = BRAND_NAME
 
 # Ghost Auditing — folder-scale background extraction (thread-safe; UI polls via st.fragment)
-# Industrial Intake: 100+ PDFs supported; multi-file upload (2+) runs off-thread with ThreadPoolExecutor (≤10 workers).
+# Industrial Intake: 100+ PDFs supported; multi-file upload (2+) runs off-thread with a bounded worker pool (≤10 workers).
 GHOST_ASYNC_THRESHOLD = 2  # PDF count at which processing moves off the main Streamlit thread
 GHOST_FRAGMENT_POLL_SEC = 0.5  # drain merge queue → vault without full-page refresh (fragment tick)
 MASSIVE_INTAKE_MAX_WORKERS = 10
@@ -433,8 +512,8 @@ def _establish_paystack_reviewer_bypass_session() -> None:
     st.session_state.role = "reviewer"
     st.session_state._paystack_reviewer_bypass = True
     # Explicit session keys requested for Paystack review / Reviewer mode
-    st.session_state["logged_in"] = True
-    st.session_state["user_role"] = "Reviewer"
+    st.session_state.logged_in = True
+    st.session_state.user_role = "Reviewer"
 
 
 def _apply_paystack_demo_role_override() -> None:
@@ -443,8 +522,8 @@ def _apply_paystack_demo_role_override() -> None:
         return
     st.session_state.role = "reviewer"
     st.session_state.email = _session_email_normalized() or DEMO_PAYSTACK_EMAIL
-    st.session_state["logged_in"] = True
-    st.session_state["user_role"] = "Reviewer"
+    st.session_state.logged_in = True
+    st.session_state.user_role = "Reviewer"
 
 
 def check_permissions() -> AppPermissions:
@@ -933,8 +1012,7 @@ def render_login_screen() -> None:
                 and password == PAYSTACK_REVIEW_BYPASS_PASSWORD
             ):
                 _establish_paystack_reviewer_bypass_session()
-                st.success("Authenticated (Paystack review). Loading Neural Audit Demo…")
-                time.sleep(0.35)
+                # Immediate rerun — no Supabase path; avoids any stale error state on this run
                 st.rerun()
             else:
                 try:
@@ -1087,6 +1165,7 @@ def render_login_screen() -> None:
 
 
 # Gatekeeper: block unauthenticated access (Supabase user or emergency Reviewer bypass)
+_inject_stealth_ui_deep_clean_css()
 if st.session_state.user is None and not st.session_state.get("logged_in"):
     render_login_screen()
     st.stop()
@@ -2128,6 +2207,13 @@ st.markdown("""
         border-bottom: 1px solid rgba(212, 175, 55, 0.15);
         background: #020617;
         font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+    }
+    .reviewer-footer-lock .rfl-kyc-line {
+        font-size: 0.72rem !important;
+        letter-spacing: 0.08em !important;
+        color: #e2e8f0 !important;
+        margin: 0 0 0.5rem 0 !important;
+        line-height: 1.45 !important;
     }
     .reviewer-footer-lock .rfl-addr {
         font-size: 0.72rem !important;
@@ -4775,7 +4861,7 @@ def _ghost_sum_rows_potential_revenue(rows: list[dict]) -> float:
 def _ghost_process_one_pdf(
     args: tuple[int, str, bytes, str, str],
 ) -> dict[str, Any]:
-    """ThreadPool worker: PDF → text → headless Batch Predator (no Streamlit / session_state)."""
+    """Background worker: PDF → text → headless Batch Predator (no Streamlit / session_state)."""
     i, name, file_bytes, job_id, file_hash = args
     label = _ghost_claim_label_from_filename(name)
     out: dict[str, Any] = {
@@ -9057,14 +9143,45 @@ def _paystack_release_checkout_url() -> str:
     return DEFAULT_PAYSTACK_RELEASE_CHECKOUT_URL
 
 
+def _paystack_audit_fee_checkout_url() -> str:
+    """Hosted Paystack page for the standard audit fee ($2,625). Optional secrets override."""
+    try:
+        if "PAYSTACK_AUDIT_FEE_CHECKOUT_URL" in st.secrets:
+            u = str(st.secrets["PAYSTACK_AUDIT_FEE_CHECKOUT_URL"]).strip()
+            if u:
+                return u
+    except Exception:
+        pass
+    return _paystack_release_checkout_url()
+
+
+def _render_paystack_audit_fee_cta() -> None:
+    """Primary CTA: opens Paystack hosted checkout in a dedicated window (modal-style)."""
+    _url = _paystack_audit_fee_checkout_url()
+    _u = json.dumps(_url)
+    components.html(
+        f"""
+<div style="text-align:center;padding:0.35rem 0 0.6rem;font-family:'JetBrains Mono',ui-monospace,monospace;">
+  <button type="button" id="senturion-audit-fee-btn"
+    style="width:100%;background:#0ea5e9;color:#0f172a;font-weight:700;padding:0.75rem 1rem;border:none;border-radius:4px;cursor:pointer;font-size:0.95rem;letter-spacing:0.06em;"
+    onclick="window.open({_u}, 'paystack_checkout', 'width=520,height=720,scrollbars=yes')">
+    Pay $2,625 Audit Fee
+  </button>
+  <p style="color:#94a3b8;font-size:0.65rem;margin:0.6rem 0 0;letter-spacing:0.04em;">Hosted Paystack checkout</p>
+</div>
+""",
+        height=130,
+    )
+
+
 def _render_demo_audit_page() -> None:
-    """Neural Audit Demo — Paystack Reviewer (reviews@paystack.com): polished cohort + Pay Now."""
+    """Neural Audit Summary (Reviewer): 3 mock claims + audit fee CTA."""
     _mid_esc = html_std.escape(str(PAYSTACK_MERCHANT_ID))
     st.markdown(
         """
 <div class="demo-audit-hero paystack-reviewer-hero">
-  <div class="demo-audit-title">Neural Audit Demo</div>
-  <div class="demo-audit-sub">Senturion AI Solutions · Merchant verification preview</div>
+  <div class="demo-audit-title">Neural Audit Summary</div>
+  <div class="demo-audit-sub">Senturion AI Solutions · Reviewer demo</div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -9080,51 +9197,33 @@ def _render_demo_audit_page() -> None:
         "</div>",
         unsafe_allow_html=True,
     )
-    _cohort_total = REVIEWER_MOCK_RECOVERABLE_USD * len(REVIEWER_MOCK_AUDIT_IDS)
+    _cohort_total = REVIEWER_MOCK_CLAIMS_TOTAL_USD
     st.markdown(
         f'<div class="reviewer-recoverable-hero">Recoverable Revenue (demo cohort): '
         f'<span class="reviewer-usd">${_cohort_total:,.2f}</span>'
-        f'<span class="reviewer-hero-sub">3 audits × ${REVIEWER_MOCK_RECOVERABLE_USD:,.2f} each</span></div>',
+        f'<span class="reviewer-hero-sub">3 mock claims · Neural Analysis Complete</span></div>',
         unsafe_allow_html=True,
     )
-    _mock_audits = [
-        {
-            "Audit ID": aid,
-            "Clinic": REVIEWER_MOCK_CLINIC,
-            "Status": REVIEWER_MOCK_AUDIT_STATUS,
-            "Recoverable Revenue": f"${REVIEWER_MOCK_RECOVERABLE_USD:,.2f}",
-        }
-        for aid in REVIEWER_MOCK_AUDIT_IDS
-    ]
     st.markdown(
-        '<p class="reviewer-section-title">Mock audits — Neural Analysis (injected demo data)</p>',
+        '<p class="reviewer-section-title">Neural Audit Summary — mock claims (injected)</p>',
         unsafe_allow_html=True,
     )
     st.dataframe(
-        pd.DataFrame(_mock_audits),
+        pd.DataFrame(REVIEWER_MOCK_CLAIMS_ROWS),
         use_container_width=True,
         hide_index=True,
     )
-    if hasattr(st, "link_button"):
-        st.link_button(
-            "Pay Now",
-            _paystack_release_checkout_url(),
-            type="primary",
-            use_container_width=True,
-            help=f"Opens Paystack Checkout for Merchant ID {PAYSTACK_MERCHANT_ID} (set PAYSTACK_RELEASE_CHECKOUT_URL in secrets).",
-        )
-    else:
-        st.markdown(
-            f'<a href="{html_std.escape(_paystack_release_checkout_url())}" target="_blank" '
-            'rel="noopener noreferrer" class="reviewer-pay-link">Pay Now — Paystack Checkout</a>',
-            unsafe_allow_html=True,
-        )
+    st.caption(
+        f"Standard audit fee: **${AUDIT_FEE_USD_STANDARD:,.2f}** — opens Paystack hosted checkout in a dedicated window."
+    )
+    _render_paystack_audit_fee_cta()
 
 
 def _render_mandatory_kyc_footer() -> None:
-    """Paystack compliance — mandatory KYC strip on every page (below primary chrome)."""
+    """Paystack compliance — permanent KYC strip on every page (below primary chrome)."""
+    _plain = html_std.escape(_kyc_footer_line_plain())
     st.markdown(
-        f'<div class="kyc-footer-bar kyc-footer-legal">{_kyc_footer_html_inner()}</div>',
+        f'<div class="kyc-footer-bar kyc-footer-legal kyc-footer-permanent">{_plain}</div>',
         unsafe_allow_html=True,
     )
 
@@ -9166,7 +9265,7 @@ def main():
                 unsafe_allow_html=True,
             )
         st.caption(f"Access tier: **{(role or '…').upper()}**")
-        if _demo:
+        if _demo or perms.is_reviewer:
             st.caption("Neural Audit Demo · Reviewer · Paystack merchant preview (Secure Clinical Logic)")
             st.markdown(
                 '<div class="reviewer-sidebar-executive">'
@@ -9388,13 +9487,13 @@ def main():
                 st.rerun()
 
     if _is_paystack_demo_session():
-        # Footer lock — fixed copy for Reviewer / Paystack verification (matches compliance pack)
+        # Footer lock — fixed copy for Reviewer / Paystack verification
+        _kyc_lock = html_std.escape(_kyc_footer_line_plain())
         st.markdown(
-            """
+            f"""
 <div class="reviewer-footer-lock">
-  <p class="rfl-addr"><strong>1171 Bergsig Street, Pretoria</strong></p>
-  <p class="rfl-mid"><strong>Merchant ID: 1774856</strong></p>
-  <p class="rfl-copy">Senturion AI Solutions · Neural Audit Demo · © 2026</p>
+  <p class="rfl-kyc-line">{_kyc_lock}</p>
+  <p class="rfl-copy">Neural Audit Summary · © 2026</p>
 </div>
 """,
             unsafe_allow_html=True,
