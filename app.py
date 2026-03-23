@@ -114,6 +114,164 @@ def _kyc_footer_line_plain() -> str:
     return "Senturion AI Solutions | 1171 Bergsig Street, Pretoria | Merchant ID: 1774856"
 
 
+def _inject_senturion_v2_global_css() -> None:
+    """Senturion V2.0 — Deep Space Black, Inter, glass chrome, Senturion Blue / Gold, CTA buttons."""
+    st.markdown(
+        """
+<style id="senturion-v2-brand">
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* Standalone app — hide Streamlit chrome */
+#MainMenu { visibility: hidden !important; height: 0 !important; max-height: 0 !important; }
+header[data-testid="stHeader"] { visibility: hidden !important; height: 0 !important; max-height: 0 !important; min-height: 0 !important; }
+[data-testid="stToolbar"] { visibility: hidden !important; height: 0 !important; }
+[data-testid="stDecoration"] { display: none !important; }
+footer,
+[data-testid="stFooter"],
+.stApp > footer,
+a[href*="streamlit.io"] {
+    visibility: hidden !important;
+    display: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
+}
+
+/* Deep Space Black canvas */
+.stApp,
+[data-testid="stAppViewContainer"] {
+    background: #0B0E14 !important;
+    background-image: none !important;
+    color: #e8eaed !important;
+}
+
+/* Typography — Inter everywhere */
+html, body, .stApp,
+.stApp [class*="st"],
+section.main,
+[data-testid="stSidebar"] {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+}
+
+/* Senturion Blue — headers & titles */
+h1, h2, h3, h4, h5, h6,
+.main h1, .main h2, .main h3,
+.hud-title,
+.vault-senturion-title,
+.cc-step-h,
+.client-pitch-label,
+.na-hero-label,
+.projection-table-cap,
+.inst-neural-title {
+    color: #007bff !important;
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* Gold — status / indicators */
+.system-pulse,
+.data-synced,
+[data-testid="stMetric"] label,
+.founding-partners .partner-exec-line.cfo-line,
+.footer-db-txt.footer-db-on,
+.senturion-status-gold {
+    color: #D4AF37 !important;
+}
+
+/* Glassmorphism — sidebar shell */
+[data-testid="stSidebar"] {
+    background: rgba(255, 255, 255, 0.03) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8) !important;
+}
+
+[data-testid="stSidebar"] .block-container {
+    background: rgba(255, 255, 255, 0.03) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Glass — bordered containers (st.container(border=True)) */
+[data-testid="stVerticalBlockBorderWrapper"] {
+    background: rgba(255, 255, 255, 0.03) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Main content column */
+section.main .block-container {
+    background: rgba(255, 255, 255, 0.03) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Kill default grey edges on main / sidebar */
+section.main,
+[data-testid="stSidebar"] {
+    border: none !important;
+}
+
+/* Primary buttons — high-end SaaS CTA */
+[data-testid="stButton"] button[kind="primary"],
+.stButton > button[kind="primary"],
+div[data-testid="stButton"] button[kind="primary"] {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 12px !important;
+    font-weight: 700 !important;
+    font-family: 'Inter', sans-serif !important;
+    transition: all 0.3s ease !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 20px rgba(0, 123, 255, 0.35) !important;
+}
+[data-testid="stButton"] button[kind="primary"]:hover {
+    filter: brightness(1.08);
+    box-shadow: 0 6px 28px rgba(0, 123, 255, 0.5) !important;
+}
+
+/* Executive glass cards (War Room steps) */
+.cc-command-center .glass-card {
+    background: rgba(255, 255, 255, 0.03) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Client View — hero stat emphasis */
+.client-pitch-hero.client-v2-hero .client-pitch-value {
+    font-size: clamp(2.4rem, 8vw, 4rem) !important;
+    font-weight: 800 !important;
+    color: #007bff !important;
+    text-shadow: 0 0 40px rgba(0, 123, 255, 0.45) !important;
+}
+
+/* Pay Audit Fee — glow (iframe button styled in components.html) */
+@keyframes senturion-pay-audit-glow {
+    0%, 100% { box-shadow: 0 0 18px rgba(0, 123, 255, 0.45), 0 4px 24px rgba(0, 0, 0, 0.5); }
+    50% { box-shadow: 0 0 36px rgba(0, 180, 255, 0.75), 0 6px 32px rgba(0, 86, 179, 0.55); }
+}
+#senturion-audit-fee-btn {
+    animation: senturion-pay-audit-glow 2.4s ease-in-out infinite !important;
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
 def _inject_stealth_ui_deep_clean_css() -> None:
     """Suppress white overlays, bright alerts, and stray chrome — injected on login + app shell."""
     st.markdown(
@@ -569,7 +727,7 @@ REVIEWER_MOCK_CLINIC = "Miami Medical Center"
 REVIEWER_MOCK_AUDIT_STATUS = "Neural Analysis Complete"
 REVIEWER_MOCK_CLAIMS_TOTAL_USD = 14250.0
 # Client View pitch — fixed opportunity headline (USD)
-CLIENT_VIEW_OPPORTUNITY_USD = 14250.0
+CLIENT_VIEW_OPPORTUNITY_USD = 2775.0  # Client View hero — Recovery Opportunity headline
 REVIEWER_MOCK_CLAIMS_ROWS: list[dict[str, Any]] = [
     {
         "Claim ID": "CLM-MIA-2026-001",
@@ -1132,24 +1290,22 @@ if "_vault_unique_claim_hashes" not in st.session_state:
     st.session_state._vault_unique_claim_hashes = set()
 
 def render_login_screen() -> None:
-    """Senturion vault login (glass card, centered)."""
+    """Senturion V2.0 — single glass login card, Inter, Deep Space Black."""
     st.markdown(
         """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:wght@400;500;600&family=JetBrains+Mono:wght@200;300;400&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-    /* Full-viewport flex center for login stage */
+    #MainMenu, header[data-testid="stHeader"], [data-testid="stToolbar"], footer { visibility: hidden !important; height: 0 !important; }
+
     .stApp {
-        background: #050505 !important;
+        background: #0B0E14 !important;
     }
     [data-testid="stAppViewContainer"] {
         display: flex !important;
         flex-direction: row !important;
         align-items: stretch !important;
         min-height: 100vh !important;
-    }
-    [data-testid="stAppViewContainer"] [data-testid="stHeader"] {
-        background: transparent !important;
     }
     section[data-testid="stMain"] > div {
         display: flex !important;
@@ -1166,22 +1322,24 @@ def render_login_screen() -> None:
         align-items: center !important;
         justify-content: center !important;
         width: 100% !important;
-        max-width: 440px !important;
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
+        max-width: 460px !important;
+        padding: 0 !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
     }
 
-    /* Institutional vault card — matte, ruled border */
+    /* Single glass card */
     [data-testid="stVerticalBlockBorderWrapper"] {
-        background: #111111 !important;
-        backdrop-filter: none !important;
-        -webkit-backdrop-filter: none !important;
-        border: 1px solid #262626 !important;
-        border-radius: 2px !important;
-        padding: 0.35rem 0.15rem 0.75rem !important;
-        box-shadow: none !important;
+        background: rgba(255, 255, 255, 0.03) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 20px !important;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8) !important;
+        padding: 1.25rem 1.35rem 1.5rem !important;
         width: 100% !important;
-        max-width: 420px !important;
+        max-width: 440px !important;
     }
     [data-testid="stVerticalBlockBorderWrapper"] > div {
         border: none !important;
@@ -1192,104 +1350,101 @@ def render_login_screen() -> None:
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
         text-align: center;
         margin-bottom: 0.5rem;
-        padding-top: 0.5rem;
+        padding-top: 0.35rem;
+        font-family: 'Inter', sans-serif !important;
     }
     .login-brand-logo-wrap {
         display: flex;
         justify-content: center;
-        align-items: center;
         width: 100%;
         margin: 0 0 0.65rem 0;
     }
-    .login-brand-logo-wrap img {
-        display: block;
-        margin: 0 auto;
-        max-width: 100%;
-        height: auto;
-        object-fit: contain;
-        filter: none;
-    }
     .vault-senturion-title {
-        font-family: 'Playfair Display', 'Times New Roman', serif !important;
-        font-size: 26pt !important;
-        font-weight: 500 !important;
-        letter-spacing: 2px;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 1.65rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.12em;
         text-transform: uppercase;
-        text-align: center !important;
-        width: 100%;
-        color: #E0E0E0 !important;
+        color: #007bff !important;
         margin: 0 0 0.35rem 0 !important;
-        text-shadow: none;
     }
     .vault-portal-subtitle {
-        font-family: 'JetBrains Mono', ui-monospace, monospace !important;
-        font-size: 10pt !important;
-        font-weight: 300 !important;
-        letter-spacing: 2px;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.72rem !important;
+        font-weight: 500 !important;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
+        color: rgba(232, 234, 237, 0.55) !important;
+        margin: 0 0 1rem 0 !important;
+    }
+    .login-about-block {
+        font-family: 'Inter', sans-serif !important;
         text-align: center !important;
-        width: 100%;
-        color: rgba(224, 224, 224, 0.55) !important;
-        margin: 0 0 1.15rem 0 !important;
+        padding: 0.85rem 1rem;
+        margin: 0 0 1rem 0;
+        border-radius: 12px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+    .login-about-block .about-label {
+        font-size: 0.58rem !important;
+        letter-spacing: 0.18em !important;
+        text-transform: uppercase !important;
+        color: #D4AF37 !important;
+        margin: 0 0 0.5rem 0 !important;
+    }
+    .login-about-block .about-body {
+        font-size: 0.88rem !important;
+        line-height: 1.55 !important;
+        color: #e2e8f0 !important;
+        margin: 0 !important;
     }
     .vault-login-footer {
-        font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        font-family: 'Inter', sans-serif !important;
         font-size: 0.62rem !important;
-        font-weight: 400 !important;
         color: rgba(200, 210, 225, 0.42) !important;
         text-align: center !important;
-        letter-spacing: 0.1em;
-        margin: 0.25rem 0 0.15rem 0 !important;
-        padding: 0 1rem !important;
+        margin: 0.35rem 0 0.15rem 0 !important;
     }
 
-    /* Dark-navy inputs, silver focus */
     [data-testid="stVerticalBlockBorderWrapper"] .stTextInput label,
     [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stWidgetLabel"] p {
-        font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        font-family: 'Inter', sans-serif !important;
         color: #a8b0c4 !important;
     }
     [data-testid="stVerticalBlockBorderWrapper"] input[type="text"],
     [data-testid="stVerticalBlockBorderWrapper"] input[type="password"] {
-        font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
-        background: #0D0D0D !important;
-        border: 1px solid #262626 !important;
-        border-radius: 2px !important;
+        font-family: 'Inter', sans-serif !important;
+        background: rgba(15, 23, 42, 0.6) !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        border-radius: 10px !important;
         color: #E0E0E0 !important;
-        caret-color: #E0E0E0 !important;
     }
-    [data-testid="stVerticalBlockBorderWrapper"] input[type="text"]:focus,
-    [data-testid="stVerticalBlockBorderWrapper"] input[type="password"]:focus {
-        border-color: #404040 !important;
-        box-shadow: none !important;
+    [data-testid="stVerticalBlockBorderWrapper"] input:focus {
+        border-color: #007bff !important;
         outline: none !important;
     }
     [data-testid="stVerticalBlockBorderWrapper"] fieldset {
         border-color: transparent !important;
     }
 
-    /* Institutional login — titanium outline */
     [data-testid="stVerticalBlockBorderWrapper"] .stForm button[kind="formSubmit"],
     [data-testid="stVerticalBlockBorderWrapper"] .stForm [data-testid="stBaseButton-secondaryFormSubmit"] {
         width: 100% !important;
-        background: #0D0D0D !important;
-        color: #E0E0E0 !important;
-        font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
-        font-weight: 500 !important;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        border: 1px solid #262626 !important;
-        border-radius: 2px !important;
-        padding: 0.65rem 1.25rem !important;
-        transition: border-color 0.15s ease, color 0.15s ease !important;
-        box-shadow: none !important;
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+        color: #ffffff !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 700 !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 12px 24px !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 20px rgba(0, 123, 255, 0.35) !important;
     }
     [data-testid="stVerticalBlockBorderWrapper"] .stForm button[kind="formSubmit"]:hover {
-        border-color: #E0E0E0 !important;
-        color: #ffffff !important;
+        filter: brightness(1.06);
     }
     </style>
         """,
@@ -1327,15 +1482,9 @@ def render_login_screen() -> None:
         )
         st.markdown(
             """
-<div class="login-senturion-overview" style="margin:0 0 1rem 0;padding:0.9rem 1rem;border-radius:10px;
-background:rgba(15,23,42,0.72);border:1px solid rgba(148,163,184,0.28);text-align:left;
-box-shadow:0 8px 32px rgba(0,0,0,0.35);">
-<p style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:0.58rem;letter-spacing:0.16em;color:#94a3b8;
-text-transform:uppercase;margin:0 0 0.55rem 0;">Senturion AI Overview</p>
-<p style="font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;font-size:0.88rem;line-height:1.58;color:#e2e8f0;margin:0;">
-Senturion AI Solutions uses advanced Clinical Neural Logic to recover denied medical revenue for US healthcare providers.
-We automate the manual audit process with 99.5% accuracy, turning insurance denials into actionable capital.
-</p>
+<div class="login-about-block">
+  <p class="about-label">About us</p>
+  <p class="about-body">Senturion AI Solutions: Clinical Neural Logic for Revenue Recovery. Founded by CEO Eduard de Lange &amp; CFO Monré Wessel Nagel.</p>
 </div>
 """,
             unsafe_allow_html=True,
@@ -1574,6 +1723,7 @@ We automate the manual audit process with 99.5% accuracy, turning insurance deni
 # Gatekeeper: block unauthenticated access (Supabase user or emergency Reviewer bypass)
 _inject_stealth_ui_deep_clean_css()
 _inject_nuclear_white_overlay_kill_css()
+_inject_senturion_v2_global_css()
 if st.session_state.user is None and not st.session_state.get("logged_in"):
     render_login_screen()
     st.stop()
@@ -2861,6 +3011,8 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+_inject_senturion_v2_global_css()
 
 EXTRACTION_PROMPT = """You are a Federal Regulatory Auditor. Analyze the following document and extract denial information with statutory awareness.
 
@@ -7423,21 +7575,43 @@ else:
 
 
 def _render_client_facing_view(clinic_name: str) -> None:
-    """Client View: fixed opportunity headline + Paystack pay path only (no intake / uplink / internal tools)."""
+    """Client View: Hero Recovery Opportunity + glowing Pay Audit Fee (V2.0)."""
     _ = clinic_name  # branding context only — surface stays minimal
     st.markdown(
         """
 <style>
 section.main [data-testid="stButton"] button[kind="primary"],
 section.main div[data-testid="stDownloadButton"] button {
-    background: #00FF41 !important;
-    color: #050505 !important;
-    border: 3px solid #00FF41 !important;
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
     font-weight: 700 !important;
-    letter-spacing: 0.05em !important;
+    border-radius: 12px !important;
 }
-section.main div[data-testid="stDownloadButton"] button {
-    text-transform: uppercase !important;
+.client-pitch-hero.client-v2-hero {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(0, 123, 255, 0.35) !important;
+    border-radius: 20px !important;
+    padding: 2.5rem 1.5rem !important;
+    margin: 0.5rem 0 1.5rem !important;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.55) !important;
+}
+.client-pitch-hero.client-v2-hero .client-pitch-label {
+    color: #007bff !important;
+    font-size: clamp(0.75rem, 2vw, 0.95rem) !important;
+}
+.client-pitch-hero.client-v2-hero .client-pitch-value {
+    font-family: 'Inter', sans-serif !important;
+    font-size: clamp(2.75rem, 9vw, 4.25rem) !important;
+    font-weight: 800 !important;
+    color: #007bff !important;
+    text-shadow: 0 0 48px rgba(0, 123, 255, 0.45) !important;
+    line-height: 1.08 !important;
+}
+.client-pitch-hero.client-v2-hero .client-pitch-sub {
+    color: #D4AF37 !important;
+    font-size: 0.8rem !important;
+    letter-spacing: 0.1em !important;
 }
 </style>
 """,
@@ -7450,15 +7624,15 @@ section.main div[data-testid="stDownloadButton"] button {
     total_fmt = f"{CLIENT_VIEW_OPPORTUNITY_USD:,.2f}"
     st.markdown(
         f"""
-<div class="client-pitch-hero">
-  <div class="client-pitch-label">REVENUE RECOVERY OPPORTUNITY</div>
+<div class="client-pitch-hero client-v2-hero">
+  <div class="client-pitch-label">RECOVERY OPPORTUNITY</div>
   <p class="client-pitch-value">${total_fmt}</p>
-  <div class="client-pitch-sub">Recoverable capital — proceed to authorize recovery</div>
+  <div class="client-pitch-sub">Hero stat · proceed to secure payment</div>
 </div>
 """,
         unsafe_allow_html=True,
     )
-    st.caption("Secure checkout below — standard audit fee applies.")
+    st.caption("Pay Audit Fee below — hosted checkout.")
     _render_paystack_audit_fee_cta()
 
 
@@ -8284,13 +8458,13 @@ def _render_neural_audit_module() -> None:
         unsafe_allow_html=True,
     )
 
-    # STEP 1 — Clinic onboarding
+    # STEP 1 — Clinic Registry (Executive card)
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown(
-        '<p class="cc-step-title"><span class="cc-step-num">Step 1</span> · Clinic onboarding</p>',
+        '<p class="cc-step-title"><span class="cc-step-num">Step 1</span> · Clinic Registry (Selection)</p>',
         unsafe_allow_html=True,
     )
-    st.markdown('<h3 class="cc-step-h">Select the active clinic</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 class="cc-step-h">Executive card · Active clinic</h3>', unsafe_allow_html=True)
     st.caption("Recoveries and audit rows are tagged to this clinic.")
     _ids = [p["clinic_id"] for p in st.session_state.clinic_profiles]
     if not _ids:
@@ -8311,12 +8485,12 @@ def _render_neural_audit_module() -> None:
     # STEP 2 — Neural intake
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown(
-        '<p class="cc-step-title"><span class="cc-step-num">Step 2</span> · Neural intake</p>',
+        '<p class="cc-step-title"><span class="cc-step-num">Step 2</span> · Neural Intake (The Uplink)</p>',
         unsafe_allow_html=True,
     )
-    st.markdown('<h3 class="cc-step-h">Add denial documents or pasted data</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 class="cc-step-h">Executive card · Documents &amp; data</h3>', unsafe_allow_html=True)
     st.caption("Upload PDFs (one or many), or paste denial text or table data below.")
-    tab_uplink, tab_paste = st.tabs(["Document upload", "Paste data"])
+    tab_uplink, tab_paste = st.tabs(["The Uplink", "Paste data"])
 
     with tab_uplink:
         st.caption("Choose PDFs in the file dialog. Large batches run in the background; duplicates are skipped.")
@@ -8345,7 +8519,7 @@ def _render_neural_audit_module() -> None:
 
         # STEP 3 — Engine activation (uplink)
         st.markdown(
-            '<p class="cc-step-title" style="margin-top:0.85rem;"><span class="cc-step-num">Step 3</span> · Engine activation</p>',
+            '<p class="cc-step-title" style="margin-top:0.85rem;"><span class="cc-step-num">Step 3</span> · Engine Activation (The Audit Trigger)</p>',
             unsafe_allow_html=True,
         )
         _run_uplink = st.button(
@@ -8446,7 +8620,7 @@ def _render_neural_audit_module() -> None:
     with tab_paste:
         st.caption("Paste denial letter text, EOB excerpts, or CSV-style rows.")
         st.markdown(
-            '<p class="cc-step-title" style="margin-top:0.35rem;"><span class="cc-step-num">Step 3</span> · Engine activation</p>',
+            '<p class="cc-step-title" style="margin-top:0.35rem;"><span class="cc-step-num">Step 3</span> · Engine Activation (The Audit Trigger)</p>',
             unsafe_allow_html=True,
         )
         st.caption("Submit pasted content to run the same audit engine as document upload.")
@@ -8480,10 +8654,10 @@ def _render_neural_audit_module() -> None:
     # STEP 4 — Revenue vault
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown(
-        '<p class="cc-step-title"><span class="cc-step-num">Step 4</span> · Revenue vault</p>',
+        '<p class="cc-step-title"><span class="cc-step-num">Step 4</span> · Revenue Vault (The Results)</p>',
         unsafe_allow_html=True,
     )
-    st.markdown('<h3 class="cc-step-h">Recovered value & ledger</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 class="cc-step-h">Executive card · Recovered value &amp; ledger</h3>', unsafe_allow_html=True)
     st.caption("Totals and claim-level results from your audits.")
 
     _sync_vault_from_neural_batch()
@@ -9629,22 +9803,28 @@ def _render_paystack_audit_fee_cta() -> None:
         components.html(
         f"""
 <style>
+  @keyframes senturion-pay-audit-glow {{
+    0%, 100% {{ box-shadow: 0 0 18px rgba(0, 123, 255, 0.5), 0 4px 24px rgba(0, 0, 0, 0.45); }}
+    50% {{ box-shadow: 0 0 36px rgba(0, 180, 255, 0.85), 0 6px 32px rgba(0, 86, 179, 0.55); }}
+  }}
   #senturion-audit-fee-btn {{
     width: 100%;
-    background: linear-gradient(180deg, #0ea5e9 0%, #0369a1 100%);
-    color: #0f172a;
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    color: #ffffff;
     font-weight: 700;
-    padding: 0.75rem 1rem;
-    border: 1px solid #38bdf8;
-    border-radius: 4px;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 12px;
     cursor: pointer;
     font-size: 0.95rem;
-    letter-spacing: 0.06em;
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    box-shadow: none !important;
+    letter-spacing: 0.04em;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    animation: senturion-pay-audit-glow 2.4s ease-in-out infinite;
+    transition: all 0.3s ease;
   }}
-  #senturion-audit-fee-btn:hover {{ border-color: #7dd3fc !important; color: #020617 !important;
-    background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%) !important; }}
+  #senturion-audit-fee-btn:hover {{
+    filter: brightness(1.08);
+  }}
   .senturion-pay-fallback-link {{
     display: inline-block;
     margin-top: 0.65rem;
@@ -9659,7 +9839,7 @@ def _render_paystack_audit_fee_cta() -> None:
   }}
 </style>
 <div style="text-align:center;padding:0.35rem 0 0.5rem;font-family:'JetBrains Mono',ui-monospace,monospace;">
-  <button type="button" id="senturion-audit-fee-btn">Pay $2,625 Audit Fee</button>
+  <button type="button" id="senturion-audit-fee-btn">Pay Audit Fee</button>
   <p style="color:#94a3b8;font-size:0.62rem;margin:0.55rem 0 0;letter-spacing:0.04em;">
     Opens Paystack secure overlay (Inline)</p>
   <a id="senturion-paystack-fallback" class="senturion-pay-fallback-link" href="{_fallback_esc}" target="_blank" rel="noopener noreferrer">Fallback: open checkout</a>
@@ -9819,6 +9999,7 @@ def main():
     _demo = _is_paystack_demo_session()
     if perms.is_reviewer or _demo:
         _inject_senturion_reviewer_theme_lock_css()
+    _inject_senturion_v2_global_css()
 
     with st.sidebar:
         logo_file = None
@@ -9914,7 +10095,7 @@ def main():
                 st.subheader("Multi-tenant clinic")
                 _ensure_clinic_profiles()
                 st.caption(
-                    "**Active clinic** is chosen in the War Room: **Step 1 · Clinic onboarding** (avoids duplicate controls)."
+                    "**Active clinic** is chosen in the War Room: **Step 1 · Clinic Registry (Selection)** (avoids duplicate controls)."
                 )
                 with st.expander("Settings", expanded=False):
                     _tsig, _tcl = st.tabs(["Signature & digital", "Clinic Management"])
