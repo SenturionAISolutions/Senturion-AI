@@ -279,11 +279,13 @@ def _inject_stealth_ui_deep_clean_css() -> None:
         box-shadow: none !important;
         border-color: #475569 !important;
     }
-    /* Sidebar session strip — Deep Dark (all roles) */
+    /* Sidebar session strip — glass (no white “card” boxes) */
     [data-testid="stSidebar"] .senturion-sidebar-session-strip {
-        background: #0E1117 !important;
-        border: 1px solid #262730 !important;
-        border-radius: 4px !important;
+        background: rgba(15, 23, 42, 0.42) !important;
+        backdrop-filter: blur(12px) saturate(1.1) !important;
+        -webkit-backdrop-filter: blur(12px) saturate(1.1) !important;
+        border: 1px solid rgba(148, 163, 184, 0.22) !important;
+        border-radius: 10px !important;
         padding: 0.65rem 0.75rem !important;
         margin: 0 0 0.65rem 0 !important;
         box-shadow: none !important;
@@ -295,8 +297,27 @@ def _inject_stealth_ui_deep_clean_css() -> None:
         letter-spacing: 0.06em !important;
         color: #94a3b8 !important;
     }
-    [data-testid="stSidebar"] .senturion-sidebar-session-strip .sas-email {
+    [data-testid="stSidebar"] .senturion-sidebar-session-strip .sas-email,
+    [data-testid="stSidebar"] .senturion-sidebar-session-strip code {
         color: #e2e8f0 !important;
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+    }
+    /* Secure Logout — dark glass, no white fill */
+    [data-testid="stSidebar"] [data-testid="stButton"] button[kind="secondary"],
+    [data-testid="stSidebar"] [data-testid="stButton"] button {
+        background: rgba(15, 23, 42, 0.55) !important;
+        background-image: none !important;
+        color: #e2e8f0 !important;
+        border: 1px solid rgba(148, 163, 184, 0.35) !important;
+        box-shadow: none !important;
+        -webkit-box-shadow: none !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stButton"] button:hover {
+        background: rgba(30, 41, 59, 0.75) !important;
+        border-color: rgba(56, 189, 248, 0.45) !important;
     }
 </style>
 """,
@@ -494,15 +515,15 @@ def _inject_senturion_reviewer_theme_lock_css() -> None:
         font-size: 0.92rem !important;
         line-height: 1.35 !important;
     }
-    /* Secure Logout — dark, thin white border, no white hover/focus bloom */
+    /* Secure Logout — glass dark, no white panel */
     [data-testid="stSidebar"] [data-testid="stButton"] button {
         width: 100% !important;
         min-height: 2.5rem !important;
         margin-top: 0.25rem !important;
-        background: #0a0a0a !important;
+        background: rgba(15, 23, 42, 0.55) !important;
         background-image: none !important;
         color: #e2e8f0 !important;
-        border: 1px solid rgba(255, 255, 255, 0.85) !important;
+        border: 1px solid rgba(148, 163, 184, 0.38) !important;
         box-shadow: none !important;
         -webkit-box-shadow: none !important;
         filter: none !important;
@@ -512,17 +533,17 @@ def _inject_senturion_reviewer_theme_lock_css() -> None:
         font-size: 0.72rem !important;
     }
     [data-testid="stSidebar"] [data-testid="stButton"] button:hover {
-        background: #111111 !important;
+        background: rgba(30, 41, 59, 0.82) !important;
         color: #e2e8f0 !important;
-        border: 1px solid rgba(255, 255, 255, 0.9) !important;
+        border: 1px solid rgba(56, 189, 248, 0.45) !important;
         box-shadow: none !important;
     }
     [data-testid="stSidebar"] [data-testid="stButton"] button:focus,
     [data-testid="stSidebar"] [data-testid="stButton"] button:focus-visible {
         outline: none !important;
-        background: #0a0a0a !important;
+        background: rgba(15, 23, 42, 0.65) !important;
         color: #e2e8f0 !important;
-        border: 1px solid rgba(255, 255, 255, 0.95) !important;
+        border: 1px solid rgba(56, 189, 248, 0.55) !important;
         box-shadow: none !important;
     }
     [data-testid="stSidebar"] [data-testid="stButton"] button:disabled {
@@ -547,6 +568,8 @@ PAYSTACK_REVIEWER_BYPASS_USER_ID = "paystack-reviewer-bypass-local"
 REVIEWER_MOCK_CLINIC = "Miami Medical Center"
 REVIEWER_MOCK_AUDIT_STATUS = "Neural Analysis Complete"
 REVIEWER_MOCK_CLAIMS_TOTAL_USD = 14250.0
+# Client View pitch — fixed opportunity headline (USD)
+CLIENT_VIEW_OPPORTUNITY_USD = 14250.0
 REVIEWER_MOCK_CLAIMS_ROWS: list[dict[str, Any]] = [
     {
         "Claim ID": "CLM-MIA-2026-001",
@@ -1300,6 +1323,21 @@ def render_login_screen() -> None:
             f'<div class="vault-brand-wrap">{_brand_logo_html}'
             '<p class="vault-senturion-title">SENTURION AI</p>'
             '<p class="vault-portal-subtitle">Secure Medical Revenue Recovery Terminal</p></div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            """
+<div class="login-senturion-overview" style="margin:0 0 1rem 0;padding:0.9rem 1rem;border-radius:10px;
+background:rgba(15,23,42,0.72);border:1px solid rgba(148,163,184,0.28);text-align:left;
+box-shadow:0 8px 32px rgba(0,0,0,0.35);">
+<p style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:0.58rem;letter-spacing:0.16em;color:#94a3b8;
+text-transform:uppercase;margin:0 0 0.55rem 0;">Senturion AI Overview</p>
+<p style="font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;font-size:0.88rem;line-height:1.58;color:#e2e8f0;margin:0;">
+Senturion AI Solutions uses advanced Clinical Neural Logic to recover denied medical revenue for US healthcare providers.
+We automate the manual audit process with 99.5% accuracy, turning insurance denials into actionable capital.
+</p>
+</div>
+""",
             unsafe_allow_html=True,
         )
 
@@ -7385,7 +7423,8 @@ else:
 
 
 def _render_client_facing_view(clinic_name: str) -> None:
-    """Pitch mode: emerald hero, insurer heatmap, monetization gate + Client Vault contracts."""
+    """Client View: fixed opportunity headline + Paystack pay path only (no intake / uplink / internal tools)."""
+    _ = clinic_name  # branding context only — surface stays minimal
     st.markdown(
         """
 <style>
@@ -7408,90 +7447,19 @@ section.main div[data-testid="stDownloadButton"] button {
         '<h1 class="hud-title" style="border:none;">Revenue Recovery · Client View</h1>',
         unsafe_allow_html=True,
     )
-    total, _, _ = _vault_metrics_compute()
-    total_fmt = f"{total:,.2f}"
+    total_fmt = f"{CLIENT_VIEW_OPPORTUNITY_USD:,.2f}"
     st.markdown(
         f"""
 <div class="client-pitch-hero">
   <div class="client-pitch-label">REVENUE RECOVERY OPPORTUNITY</div>
   <p class="client-pitch-value">${total_fmt}</p>
-  <div class="client-pitch-sub">Aggregated from your vault · recoverable proxy</div>
+  <div class="client-pitch-sub">Recoverable capital — proceed to authorize recovery</div>
 </div>
 """,
         unsafe_allow_html=True,
     )
-
-    st.markdown(
-        '<p style="font-family:JetBrains Mono,monospace;font-size:0.72rem;letter-spacing:0.18em;'
-        'color:#E0E0E0;text-transform:uppercase;margin:0.5rem 0 0.35rem;">Denial heatmap · by insurer</p>',
-        unsafe_allow_html=True,
-    )
-    st.caption("Estimated recovery exposure by payer (from your Neural Audit Summary).")
-    heat_df = _vault_insurer_heatmap_df()
-    if heat_df.empty or float(heat_df["Recovery ($)"].sum()) <= 0:
-        st.info("No insurer-level data yet — run a neural audit or sync denials to populate the vault.")
-    else:
-        st.bar_chart(heat_df)
-
-    st.markdown("---")
-    _ensure_clinic_profiles()
-    _active_cid = st.session_state.get("active_clinic_id")
-    _display_cname = (clinic_name or "").strip() or (
-        _clinic_display_name(_active_cid) if _active_cid else "Clinic"
-    )
-    _audit_hash = _vault_audit_hash_for_monetization()
-    if _active_cid and _monetization_signed_for_clinic(str(_active_cid)):
-        _signed_ah = st.session_state.get(f"_monetization_audit_hash_{_active_cid}")
-        if _signed_ah:
-            st.success(
-                f"**Revenue Recovery Agreement signed** for this clinic (Audit **{_signed_ah}**). "
-                "Batch enforcement is authorized for agents."
-            )
-        else:
-            st.success(
-                "**Revenue Recovery Agreement signed** for this clinic. Batch enforcement is authorized for agents."
-            )
-
-    if st.button(
-        "🤝 AUTHORIZE RECOVERY",
-        type="primary",
-        use_container_width=True,
-        key="btn_client_authorize_recovery",
-    ):
-        st.session_state["_open_monetization_dialog"] = True
-        st.session_state["_modal_monetization_clinic_id"] = str(_active_cid or "")
-        st.session_state["_modal_monetization_clinic_name"] = _display_cname
-        st.session_state["_modal_monetization_audit_hash"] = _audit_hash
-        st.rerun()
-
-    if st.session_state.get("_open_monetization_dialog"):
-        monetization_gate_dialog()
-
-    st.markdown("##### Client Vault")
-    st.caption("Signed contracts (this session) — PDFs for Provider and Senturion (Eddie handoff).")
-    _ensure_client_vault_contracts()
-    _vc = [
-        c
-        for c in (st.session_state.client_vault_contracts or [])
-        if not _active_cid or str(c.get("clinic_id") or "") == str(_active_cid)
-    ]
-    if not _vc:
-        st.warning("No signed contracts in vault yet. Use **Authorize Recovery** to execute the agreement.")
-    else:
-        for i, rec in enumerate(reversed(_vc[-12:])):
-            _fn = rec.get("file_name") or "Senturion_Revenue_Recovery_Agreement.pdf"
-            _pb = rec.get("pdf_bytes")
-            _sa = rec.get("signed_at") or ""
-            if _pb:
-                _safe_k = re.sub(r"[^\w\-]+", "_", (_fn or "c")[:48])
-                st.download_button(
-                    label=f"⬇ {_fn} · {_sa[:19]}",
-                    data=_pb,
-                    file_name=_fn,
-                    mime="application/pdf",
-                    key=f"dl_client_vault_{i}_{_safe_k}",
-                    use_container_width=True,
-                )
+    st.caption("Secure checkout below — standard audit fee applies.")
+    _render_paystack_audit_fee_cta()
 
 
 def _render_vault_institutional_dashboard() -> None:
@@ -8278,45 +8246,93 @@ def _render_neural_ghost_live_preview(data: list[dict], *, show_downloads: bool 
 
 
 def _render_neural_audit_module() -> None:
+    """Linear Command Center: Step 1 Clinic → Step 2 Intake → Step 3 Run → Step 4 Vault."""
     _ensure_clinic_profiles()
-    _ap = _get_clinic_profile(st.session_state.get("active_clinic_id"))
-    if _ap:
-        st.caption(
-            f"**Active clinic:** {_ap.get('name', '—')} · uploads tagged with `Clinic_ID` "
-            f"`{str(_ap.get('clinic_id', ''))[:10]}…`"
+    st.markdown(
+        """
+<style>
+.cc-command-center .glass-card {
+    background: rgba(15, 23, 42, 0.5) !important;
+    backdrop-filter: blur(16px) saturate(1.15);
+    -webkit-backdrop-filter: blur(16px) saturate(1.15);
+    border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    border-radius: 14px !important;
+    padding: 1.1rem 1.2rem !important;
+    margin-bottom: 1rem !important;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45) !important;
+}
+.cc-step-title {
+    font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+    letter-spacing: 0.14em !important;
+    font-size: 0.62rem !important;
+    color: #64748b !important;
+    text-transform: uppercase;
+    margin: 0 0 0.35rem 0 !important;
+}
+.cc-step-h {
+    font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+    font-size: 1.05rem !important;
+    color: #f8fafc !important;
+    margin: 0 0 0.5rem 0 !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.04em !important;
+}
+.cc-step-num { color: #38bdf8 !important; font-weight: 700 !important; }
+</style>
+<div class="cc-command-center">
+""",
+        unsafe_allow_html=True,
+    )
+
+    # STEP 1 — Clinic onboarding
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="cc-step-title"><span class="cc-step-num">Step 1</span> · Clinic onboarding</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown('<h3 class="cc-step-h">Select the active clinic</h3>', unsafe_allow_html=True)
+    st.caption("Recoveries and audit rows are tagged to this clinic.")
+    _ids = [p["clinic_id"] for p in st.session_state.clinic_profiles]
+    if not _ids:
+        st.warning(
+            "No clinics yet. Open **Operations** in the sidebar → **Clinic Management** to add a clinic profile."
         )
+    else:
+        _labels = {p["clinic_id"]: p.get("name") or "Clinic" for p in st.session_state.clinic_profiles}
+        st.selectbox(
+            "Active clinic",
+            options=_ids,
+            format_func=lambda k: _labels.get(k, str(k)),
+            key="active_clinic_id",
+            label_visibility="visible",
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # STEP 2 — Neural intake
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown(
-        """<div class="inst-neural-uplink-head">
-        <div class="inst-neural-title">DEPOSIT CLINIC DATA FOR NEURAL AUDIT</div>
-        </div>""",
+        '<p class="cc-step-title"><span class="cc-step-num">Step 2</span> · Neural intake</p>',
         unsafe_allow_html=True,
     )
-    st.markdown(
-        '<p class="inst-neural-data-mode-title">Neural Revenue Recovery · Secure Clinical Logic</p>',
-        unsafe_allow_html=True,
-    )
-    tab_uplink, tab_paste = st.tabs(["📁 Secure File Uplink", "📝 Manual Data Paste"])
+    st.markdown('<h3 class="cc-step-h">Add denial documents or pasted data</h3>', unsafe_allow_html=True)
+    st.caption("Upload PDFs (one or many), or paste denial text or table data below.")
+    tab_uplink, tab_paste = st.tabs(["Document upload", "Paste data"])
 
     with tab_uplink:
-        st.caption(
-            "**Neural Revenue Recovery · Secure Clinical Logic** — multi-select **100+ PDFs** in the file dialog. "
-            "High-volume batches process securely in the background; results merge into your **Neural Audit Summary** "
-            "without a full-page refresh. Duplicate files are detected and skipped automatically."
-        )
-        st.caption("High-density PDFs may truncate; use **Manual Data Paste** if extraction is incomplete.")
+        st.caption("Choose PDFs in the file dialog. Large batches run in the background; duplicates are skipped.")
         uploaded_files = st.file_uploader(
-            " ",
+            "PDF documents",
             type=["pdf"],
             accept_multiple_files=True,
-            help="Select one PDF or many (folder-style multi-select).",
+            help="Select one or more denial-related PDFs.",
             key="claim_sniper_upload",
-            label_visibility="collapsed",
+            label_visibility="visible",
         )
 
         _gm_pdf = st.session_state.get("ghost_master_pdf_bytes")
         _gm_fn = st.session_state.get("ghost_master_pdf_fn") or "Master_Audit_Summary.pdf"
         if _gm_pdf:
-            st.success("**Master Audit Summary** ready — send to Clinic CEO (Eddie handoff).")
+            st.success("**Master summary** ready for clinic delivery.")
             st.download_button(
                 label="Download Master Audit Summary (PDF)",
                 data=_gm_pdf,
@@ -8327,16 +8343,29 @@ def _render_neural_audit_module() -> None:
                 use_container_width=True,
             )
 
+        # STEP 3 — Engine activation (uplink)
+        st.markdown(
+            '<p class="cc-step-title" style="margin-top:0.85rem;"><span class="cc-step-num">Step 3</span> · Engine activation</p>',
+            unsafe_allow_html=True,
+        )
+        _run_uplink = st.button(
+            "RUN NEURAL AUDIT",
+            type="primary",
+            use_container_width=True,
+            disabled=not uploaded_files,
+            key="btn_run_neural_uplink_main",
+        )
+        if _run_uplink:
+            st.session_state["_neural_run_uplink"] = True
+            st.rerun()
+
         if not uploaded_files:
             st.session_state.pop("_ghost_started_sig", None)
-            st.markdown(
-                '<div class="senturion-dark-callout">Upload PDF denial letters or claim documents — multi-select for '
-                "batch intake.</div>",
-                unsafe_allow_html=True,
-            )
+            st.info("Upload at least one PDF, then press **RUN NEURAL AUDIT**.")
         else:
             ufs = list(uploaded_files)
             n = len(ufs)
+            _do_run = bool(st.session_state.pop("_neural_run_uplink", False))
 
             if (
                 "_neural_partial_recovery_applied" in st.session_state
@@ -8348,32 +8377,34 @@ def _render_neural_audit_module() -> None:
                 _sig = _ghost_files_signature(ufs)
                 with _GHOST_LOCK:
                     _already_running = bool(_GHOST_STATE.get("running"))
-                if st.session_state.get("_ghost_started_sig") != _sig:
-                    if _already_running:
-                        st.warning(
-                            "A **Ghost batch** is already processing. Wait for completion before starting another."
-                        )
+                _same_batch = st.session_state.get("_ghost_started_sig") == _sig
+                if _same_batch or (_do_run and not _already_running):
+                    if not _same_batch and _do_run:
+                        if _already_running:
+                            st.warning("A batch is already processing. Wait for it to finish.")
+                        else:
+                            st.session_state["_ghost_started_sig"] = _sig
+                            _ghost_start_batch(ufs)
+                            _append_audit_log(f"Neural audit batch started ({n} PDF file(s)).")
+                            st.rerun()
+                    if hasattr(st, "fragment"):
+                        _render_industrial_intake_telemetry_fragment()
                     else:
-                        st.session_state["_ghost_started_sig"] = _sig
-                        _ghost_start_batch(ufs)
-                        _append_audit_log(
-                            f"Neural Revenue Recovery: batch started ({n} PDF file(s), Secure Clinical Logic)."
-                        )
-                        st.rerun()
-                if hasattr(st, "fragment"):
-                    _render_industrial_intake_telemetry_fragment()
-                else:
-                    with _GHOST_LOCK:
-                        _pct = float(_GHOST_STATE.get("pct") or 0)
-                        _sl = str(_GHOST_STATE.get("status_line") or "")
-                        _fin = bool(_GHOST_STATE.get("finished"))
-                    st.progress(min(_pct / 100.0, 1.0))
-                    st.caption(_sl or "—")
-                    if st.session_state.get("neural_audit_batch"):
-                        _render_neural_ghost_live_preview(
-                            list(st.session_state.neural_audit_batch),
-                            show_downloads=_fin,
-                        )
+                        with _GHOST_LOCK:
+                            _pct = float(_GHOST_STATE.get("pct") or 0)
+                            _sl = str(_GHOST_STATE.get("status_line") or "")
+                            _fin = bool(_GHOST_STATE.get("finished"))
+                        st.progress(min(_pct / 100.0, 1.0))
+                        st.caption(_sl or "—")
+                        if st.session_state.get("neural_audit_batch"):
+                            _render_neural_ghost_live_preview(
+                                list(st.session_state.neural_audit_batch),
+                                show_downloads=_fin,
+                            )
+                elif _do_run and _already_running:
+                    st.warning("A batch is already processing. Finish or wait before starting another.")
+                elif not _same_batch and not _do_run:
+                    st.caption("Files selected. Press **RUN NEURAL AUDIT** to start this batch.")
             else:
                 uploaded_file = ufs[0]
                 if (
@@ -8381,13 +8412,13 @@ def _render_neural_audit_module() -> None:
                     and st.session_state.get("_neural_recovery_source_tab") == "uplink"
                 ):
                     _render_neural_extraction_results([], {}, neural_source_tab="uplink")
-                else:
-                    with st.spinner("Converting PDF to text..."):
+                elif _do_run:
+                    with st.spinner("Reading document…"):
                         file_bytes = uploaded_file.getvalue()
                         file_size = len(file_bytes)
                         if file_size > MAX_FILE_SIZE_BYTES:
                             st.markdown(
-                                '<div class="file-magnitude-warning">FILE MAGNITUDE EXCEEDS STANDARD SCAN. TRUNCATING TO PRIMARY DATA PAGES.</div>',
+                                '<div class="file-magnitude-warning">Large file — scanning primary pages only.</div>',
                                 unsafe_allow_html=True,
                             )
                         text, err = _pdf_bytes_to_text_for_neural(file_bytes)
@@ -8398,42 +8429,44 @@ def _render_neural_audit_module() -> None:
                         st.error(f"PDF read failed: {err}")
                         st.stop()
                     if not text or len(text.strip()) < 20:
-                        st.warning(
-                            "Could not extract meaningful text from the PDF. Try a different file or use Manual Data Paste."
-                        )
+                        st.warning("Not enough text in this PDF. Try another file or use **Paste data**.")
                         st.stop()
 
-                    with st.spinner("Analyzing with Gemini 2.5 Flash..."):
+                    with st.spinner("Running audit…"):
                         try:
                             data, meta = extract_denial_data(text)
                         except Exception as e:
-                            st.error(f"AI extraction failed: {e}")
+                            st.error(f"Audit failed: {e}")
                             st.stop()
 
                     _render_neural_extraction_results(data, meta, neural_source_tab="uplink")
+                else:
+                    st.caption("Press **RUN NEURAL AUDIT** to process this file.")
 
     with tab_paste:
-        st.caption(
-            "Fail-safe for **high-density PDFs** or when MarkItDown text is noisy: paste denial paragraphs "
-            "or CSV rows; processing uses the **same** Gemini extraction as the file uplink."
+        st.caption("Paste denial letter text, EOB excerpts, or CSV-style rows.")
+        st.markdown(
+            '<p class="cc-step-title" style="margin-top:0.35rem;"><span class="cc-step-num">Step 3</span> · Engine activation</p>',
+            unsafe_allow_html=True,
         )
+        st.caption("Submit pasted content to run the same audit engine as document upload.")
         st.markdown('<div class="neural-manual-paste-wrap">', unsafe_allow_html=True)
         with st.form("neural_manual_paste_form"):
             pasted = st.text_area(
-                "Paste Denial Text or CSV Data Here",
+                "Denial text or data",
                 height=280,
-                placeholder="Paste EOB text, denial letter body, or CSV rows (Patient ID, Denial Code, …)…",
+                placeholder="Paste denial content here…",
                 key="neural_manual_paste_field",
                 label_visibility="visible",
             )
-            submitted = st.form_submit_button("Process pasted audit", type="primary", use_container_width=True)
+            submitted = st.form_submit_button("RUN NEURAL AUDIT", type="primary", use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
         if submitted:
-            with st.spinner("Analyzing pasted content with Gemini…"):
+            with st.spinner("Running audit on pasted content…"):
                 try:
                     data, meta = process_pasted_audit(pasted)
                 except Exception as e:
-                    st.error(f"AI extraction failed: {e}")
+                    st.error(f"Audit failed: {e}")
                 else:
                     _render_neural_extraction_results(data, meta, neural_source_tab="paste")
         elif (
@@ -8442,8 +8475,23 @@ def _render_neural_audit_module() -> None:
         ):
             _render_neural_extraction_results([], {}, neural_source_tab="paste")
 
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # STEP 4 — Revenue vault
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="cc-step-title"><span class="cc-step-num">Step 4</span> · Revenue vault</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown('<h3 class="cc-step-h">Recovered value & ledger</h3>', unsafe_allow_html=True)
+    st.caption("Totals and claim-level results from your audits.")
+
     _sync_vault_from_neural_batch()
     _render_neural_vault_block()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_session_client_queues() -> None:
@@ -9779,8 +9827,8 @@ def main():
             (st.session_state.get("email") or "").strip()
             or (st.session_state.user.email if st.session_state.user else "")
         )
-        # Reviewer: CEO/CFO first (highest visibility); then session strip
-        if _demo or perms.is_reviewer:
+        # Leadership — top of sidebar (War Room, reviewer demo, agents)
+        if _demo or perms.is_reviewer or perms.can_appeal_engine:
             st.markdown(
                 '<div class="reviewer-sidebar-executive reviewer-sidebar-executive-hero">'
                 '<p class="rse-head">Executive leadership</p>'
@@ -9789,7 +9837,8 @@ def main():
                 "</div>",
                 unsafe_allow_html=True,
             )
-            st.caption("Neural Audit Demo · Reviewer · Paystack merchant preview (Secure Clinical Logic)")
+            if _demo or perms.is_reviewer:
+                st.caption("Neural Audit Demo · Reviewer · Paystack merchant preview (Secure Clinical Logic)")
         st.markdown(
             f'<div class="senturion-sidebar-session-strip"><p class="senturion-active-session">'
             f'<span class="sas-label">Active session</span> · '
@@ -9864,13 +9913,8 @@ def main():
             with _tab_ops:
                 st.subheader("Multi-tenant clinic")
                 _ensure_clinic_profiles()
-                _ids = [p["clinic_id"] for p in st.session_state.clinic_profiles]
-                _labels = {p["clinic_id"]: p.get("name") or "Clinic" for p in st.session_state.clinic_profiles}
-                st.selectbox(
-                    "Active clinic (uploads & appeals)",
-                    options=_ids,
-                    format_func=lambda k: _labels.get(k, str(k)),
-                    key="active_clinic_id",
+                st.caption(
+                    "**Active clinic** is chosen in the War Room: **Step 1 · Clinic onboarding** (avoids duplicate controls)."
                 )
                 with st.expander("Settings", expanded=False):
                     _tsig, _tcl = st.tabs(["Signature & digital", "Clinic Management"])
@@ -9928,14 +9972,15 @@ def main():
                         '<div class="data-synced">▼ DATA SYNCED</div>',
                         unsafe_allow_html=True,
                     )
-            st.markdown(
-                '''<div class="founding-partners">
+            if not (perms.can_appeal_engine or perms.is_reviewer or _demo):
+                st.markdown(
+                    '''<div class="founding-partners">
                 <span class="partner-exec-line ceo-line">CEO: Eduard de Lange</span>
                 <span class="partner-sep"></span>
                 <span class="partner-exec-line cfo-line">CFO: Monré Wessel Nagel</span>
             </div>''',
-                unsafe_allow_html=True,
-            )
+                    unsafe_allow_html=True,
+                )
             if not _demo and perms.can_appeal_engine:
                 st.markdown("---")
                 st.markdown(
