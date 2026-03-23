@@ -10052,16 +10052,6 @@ def main():
         elif not _cv and perms.can_clinic_portal:
             st.caption("**Clinic portal** — uploads & audit reports only (no internal treasury).")
 
-        if not _demo and not _cv and not perms.can_clinic_portal and HAS_LOTTIE and st_lottie:
-            lottie_data = _fetch_lottie_json(NEURAL_LOTTIE_URL)
-            if lottie_data:
-                st_lottie(
-                    lottie_data,
-                    speed=0.72,
-                    height=130,
-                    key="sidebar_neural_lottie",
-                )
-
         st.markdown("---")
         if perms.is_pending_access and not _demo:
             st.caption("**Access pending review** — limited sidebar until an Admin assigns your role.")
