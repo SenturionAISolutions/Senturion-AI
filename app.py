@@ -51,6 +51,244 @@ except ImportError:
     HAS_LOTTIE = False
     st_lottie = None  # type: ignore[misc, assignment]
 
+
+def _inject_senturion_hard_kill_css() -> None:
+    """HARD kill: inject first — every declaration uses !important to override Streamlit theme."""
+    st.markdown(
+        """
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+#MainMenu { visibility: hidden !important; height: 0 !important; max-height: 0 !important; overflow: hidden !important; }
+header[data-testid="stHeader"] { visibility: hidden !important; height: 0 !important; min-height: 0 !important; max-height: 0 !important; overflow: hidden !important; }
+[data-testid="stToolbar"] { visibility: hidden !important; height: 0 !important; display: none !important; }
+[data-testid="stDecoration"] { display: none !important; visibility: hidden !important; }
+footer,
+[data-testid="stFooter"],
+.stApp > footer,
+a[href*="streamlit.io"],
+[data-testid="stDeployButton"],
+[data-testid="stStatusWidget"] {
+    visibility: hidden !important;
+    display: none !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+html,
+body {
+    background-color: #0B0E14 !important;
+    color: #e8eaed !important;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+.stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stAppViewContainer"] > div {
+    background-color: #0B0E14 !important;
+    background-image: none !important;
+    color: #e8eaed !important;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+section.main,
+section[data-testid="stMain"] {
+    background-color: transparent !important;
+    color: #e8eaed !important;
+    font-family: "Inter", sans-serif !important;
+}
+
+/* Sidebar — True Dark */
+[data-testid="stSidebar"],
+[data-testid="stSidebar"] > div,
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+    background-color: #0B0E14 !important;
+    background-image: none !important;
+    color: #f1f5f9 !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+    font-family: "Inter", sans-serif !important;
+}
+
+[data-testid="stSidebar"] .block-container {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 16px !important;
+    color: #e8eaed !important;
+}
+
+/* Glass — all grey / default boxes */
+section.main .block-container,
+[data-testid="stVerticalBlockBorderWrapper"],
+[data-testid="element-container"],
+[data-testid="stMetricContainer"],
+div[data-testid="stDataFrame"],
+[data-testid="stExpander"] details,
+div[data-testid="stAlert"],
+[data-baseweb="modal"],
+[data-testid="stDialog"],
+[data-testid="stForm"],
+.cc-command-center .glass-card,
+.glass-panel,
+.senturion-sidebar-session-strip {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 16px !important;
+    box-shadow: none !important;
+    color: #e8eaed !important;
+}
+
+[data-testid="stTabs"],
+[data-baseweb="tab-border"] {
+    background-color: transparent !important;
+}
+
+/* Inputs — dark glass */
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+div[data-baseweb="input"],
+div[data-baseweb="input"] > div {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: #f8fafc !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+    font-family: "Inter", sans-serif !important;
+}
+
+/* Primary CTA — explicit div.stButton chain */
+div.stButton > button,
+[data-testid="stButton"] > button,
+.stButton > button,
+div[data-testid="stButton"] button {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+    background-image: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-width: 0 !important;
+    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.4) !important;
+    border-radius: 12px !important;
+    font-weight: 700 !important;
+    font-family: "Inter", sans-serif !important;
+    text-transform: none !important;
+}
+
+div.stButton > button:hover,
+[data-testid="stButton"] > button:hover,
+.stButton > button:hover {
+    color: #ffffff !important;
+    filter: brightness(1.08) !important;
+    box-shadow: 0 6px 22px rgba(0, 123, 255, 0.55) !important;
+}
+
+div.stButton > button:disabled,
+[data-testid="stButton"] > button:disabled {
+    opacity: 0.5 !important;
+    filter: grayscale(0.2) !important;
+}
+
+/* Executive leadership — CEO / CFO bright */
+.reviewer-sidebar-executive,
+.reviewer-sidebar-executive-hero {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(56, 189, 248, 0.45) !important;
+    border-radius: 14px !important;
+    padding: 0.85rem 0.75rem !important;
+}
+
+.reviewer-sidebar-executive .rse-head,
+.reviewer-sidebar-executive-hero .rse-head {
+    color: #94a3b8 !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.14em !important;
+}
+
+.reviewer-sidebar-executive .rse-ceo,
+.reviewer-sidebar-executive-hero .rse-ceo,
+.reviewer-sidebar-executive .rse-line.rse-ceo,
+.reviewer-sidebar-executive-hero .rse-line.rse-ceo {
+    color: #38bdf8 !important;
+    font-weight: 700 !important;
+    text-shadow: 0 0 20px rgba(56, 189, 248, 0.45) !important;
+}
+
+.reviewer-sidebar-executive .rse-cfo,
+.reviewer-sidebar-executive-hero .rse-cfo,
+.reviewer-sidebar-executive .rse-line.rse-cfo,
+.reviewer-sidebar-executive-hero .rse-line.rse-cfo {
+    color: #fbbf24 !important;
+    font-weight: 700 !important;
+    text-shadow: 0 0 18px rgba(251, 191, 36, 0.4) !important;
+}
+
+h1, h2, h3, .hud-title, .cc-step-h {
+    color: #007bff !important;
+    font-family: "Inter", sans-serif !important;
+}
+
+p, span, label, .stMarkdown, [data-testid="stCaption"] {
+    color: #cbd5e1 !important;
+}
+
+[data-testid="stMetric"] label {
+    color: #D4AF37 !important;
+}
+
+iframe {
+    background-color: transparent !important;
+}
+
+[data-testid="stLinkButton"] a,
+[data-testid="stLinkButton"] button {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.4) !important;
+    border-radius: 12px !important;
+    font-weight: 700 !important;
+    font-family: "Inter", sans-serif !important;
+}
+
+.founding-partners .partner-exec-line.ceo-line {
+    color: #38bdf8 !important;
+    font-weight: 700 !important;
+    text-shadow: 0 0 16px rgba(56, 189, 248, 0.35) !important;
+}
+.founding-partners .partner-exec-line.cfo-line {
+    color: #fbbf24 !important;
+    font-weight: 700 !important;
+    text-shadow: 0 0 16px rgba(251, 191, 36, 0.35) !important;
+}
+
+.client-pitch-hero.client-v2-hero .client-pitch-value {
+    color: #007bff !important;
+    font-weight: 800 !important;
+}
+
+@keyframes senturion-pay-audit-glow {
+    0%, 100% { box-shadow: 0 0 18px rgba(0, 123, 255, 0.45), 0 4px 24px rgba(0, 0, 0, 0.5); }
+    50% { box-shadow: 0 0 36px rgba(0, 180, 255, 0.75), 0 6px 32px rgba(0, 86, 179, 0.55); }
+}
+#senturion-audit-fee-btn {
+    animation: senturion-pay-audit-glow 2.4s ease-in-out infinite !important;
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+# Runs on every Streamlit execution — before constants / login / main
+_inject_senturion_hard_kill_css()
+
 # Dark “neural / network” style animation (public Lottie asset)
 NEURAL_LOTTIE_URL = "https://assets2.lottiefiles.com/packages/lf20_w51pcehl.json"
 # Sovereign institutional palette (dashboard + chrome)
@@ -115,161 +353,8 @@ def _kyc_footer_line_plain() -> str:
 
 
 def _inject_senturion_v2_global_css() -> None:
-    """Senturion V2.0 — Deep Space Black, Inter, glass chrome, Senturion Blue / Gold, CTA buttons."""
-    st.markdown(
-        """
-<style id="senturion-v2-brand">
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-/* Standalone app — hide Streamlit chrome */
-#MainMenu { visibility: hidden !important; height: 0 !important; max-height: 0 !important; }
-header[data-testid="stHeader"] { visibility: hidden !important; height: 0 !important; max-height: 0 !important; min-height: 0 !important; }
-[data-testid="stToolbar"] { visibility: hidden !important; height: 0 !important; }
-[data-testid="stDecoration"] { display: none !important; }
-footer,
-[data-testid="stFooter"],
-.stApp > footer,
-a[href*="streamlit.io"] {
-    visibility: hidden !important;
-    display: none !important;
-    height: 0 !important;
-    overflow: hidden !important;
-}
-
-/* Deep Space Black canvas */
-.stApp,
-[data-testid="stAppViewContainer"] {
-    background: #0B0E14 !important;
-    background-image: none !important;
-    color: #e8eaed !important;
-}
-
-/* Typography — Inter everywhere */
-html, body, .stApp,
-.stApp [class*="st"],
-section.main,
-[data-testid="stSidebar"] {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-}
-
-/* Senturion Blue — headers & titles */
-h1, h2, h3, h4, h5, h6,
-.main h1, .main h2, .main h3,
-.hud-title,
-.vault-senturion-title,
-.cc-step-h,
-.client-pitch-label,
-.na-hero-label,
-.projection-table-cap,
-.inst-neural-title {
-    color: #007bff !important;
-    font-family: 'Inter', sans-serif !important;
-}
-
-/* Gold — status / indicators */
-.system-pulse,
-.data-synced,
-[data-testid="stMetric"] label,
-.founding-partners .partner-exec-line.cfo-line,
-.footer-db-txt.footer-db-on,
-.senturion-status-gold {
-    color: #D4AF37 !important;
-}
-
-/* Glassmorphism — sidebar shell */
-[data-testid="stSidebar"] {
-    background: rgba(255, 255, 255, 0.03) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    border-radius: 20px !important;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8) !important;
-}
-
-[data-testid="stSidebar"] .block-container {
-    background: rgba(255, 255, 255, 0.03) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    border-radius: 20px !important;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8) !important;
-}
-
-/* Glass — bordered containers (st.container(border=True)) */
-[data-testid="stVerticalBlockBorderWrapper"] {
-    background: rgba(255, 255, 255, 0.03) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    border-radius: 20px !important;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8) !important;
-}
-
-/* Main content column */
-section.main .block-container {
-    background: rgba(255, 255, 255, 0.03) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    border-radius: 20px !important;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8) !important;
-}
-
-/* Kill default grey edges on main / sidebar */
-section.main,
-[data-testid="stSidebar"] {
-    border: none !important;
-}
-
-/* Primary buttons — high-end SaaS CTA */
-[data-testid="stButton"] button[kind="primary"],
-.stButton > button[kind="primary"],
-div[data-testid="stButton"] button[kind="primary"] {
-    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
-    border: none !important;
-    padding: 12px 24px !important;
-    border-radius: 12px !important;
-    font-weight: 700 !important;
-    font-family: 'Inter', sans-serif !important;
-    transition: all 0.3s ease !important;
-    color: #ffffff !important;
-    box-shadow: 0 4px 20px rgba(0, 123, 255, 0.35) !important;
-}
-[data-testid="stButton"] button[kind="primary"]:hover {
-    filter: brightness(1.08);
-    box-shadow: 0 6px 28px rgba(0, 123, 255, 0.5) !important;
-}
-
-/* Executive glass cards (War Room steps) */
-.cc-command-center .glass-card {
-    background: rgba(255, 255, 255, 0.03) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    border-radius: 20px !important;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8) !important;
-}
-
-/* Client View — hero stat emphasis */
-.client-pitch-hero.client-v2-hero .client-pitch-value {
-    font-size: clamp(2.4rem, 8vw, 4rem) !important;
-    font-weight: 800 !important;
-    color: #007bff !important;
-    text-shadow: 0 0 40px rgba(0, 123, 255, 0.45) !important;
-}
-
-/* Pay Audit Fee — glow (iframe button styled in components.html) */
-@keyframes senturion-pay-audit-glow {
-    0%, 100% { box-shadow: 0 0 18px rgba(0, 123, 255, 0.45), 0 4px 24px rgba(0, 0, 0, 0.5); }
-    50% { box-shadow: 0 0 36px rgba(0, 180, 255, 0.75), 0 6px 32px rgba(0, 86, 179, 0.55); }
-}
-#senturion-audit-fee-btn {
-    animation: senturion-pay-audit-glow 2.4s ease-in-out infinite !important;
-}
-</style>
-""",
-        unsafe_allow_html=True,
-    )
+    """Alias — re-inject HARD kill (login gate / main call sites)."""
+    _inject_senturion_hard_kill_css()
 
 
 def _inject_stealth_ui_deep_clean_css() -> None:
