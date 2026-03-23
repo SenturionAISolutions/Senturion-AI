@@ -59,8 +59,6 @@ def _inject_senturion_hard_kill_css() -> None:
 <style>
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 
-#MainMenu { visibility: hidden !important; height: 0 !important; max-height: 0 !important; overflow: hidden !important; }
-header[data-testid="stHeader"] { visibility: hidden !important; height: 0 !important; min-height: 0 !important; max-height: 0 !important; overflow: hidden !important; }
 [data-testid="stToolbar"] { visibility: hidden !important; height: 0 !important; display: none !important; }
 [data-testid="stDecoration"] { display: none !important; visibility: hidden !important; }
 footer,
@@ -1373,7 +1371,7 @@ def render_login_screen() -> None:
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-    #MainMenu, header[data-testid="stHeader"], [data-testid="stToolbar"], footer { visibility: hidden !important; height: 0 !important; }
+    #MainMenu, [data-testid="stToolbar"], footer { visibility: hidden !important; height: 0 !important; }
 
     .stApp {
         background: #0B0E14 !important;
@@ -1882,8 +1880,6 @@ st.markdown("""
         position: relative;
         overflow: auto;
     }
-
-    [data-testid="stSidebar"]::before { display: none !important; }
 
     [data-testid="stSidebar"] .block-container {
         border: 1px solid #334155 !important;
